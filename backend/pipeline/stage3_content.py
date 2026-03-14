@@ -29,9 +29,16 @@ from functools import lru_cache
 _pipeline_cache = {}
 
 HF_MODELS = [
+    # 1. Custom trained model (130k articles, WELFake+LIAR+more) — use after running train_kaggle.py
+    "Arihant2409/truthlens-fake-news-detector",
+    # 2. DistilRoBERTa fine-tuned on fake news
+    "vikram71198/distilroberta-base-finetuned-fake-news-detection",
+    # 3. RoBERTa trained on WELFake
     "hamzab/roberta-fake-news-classification",
-    "mrm8488/bert-tiny-finetuned-fake_news_detection",
+    # 4. BERT detect (large training set)
     "jy46604790/Fake-News-Bert-Detect",
+    # 5. Tiny BERT fallback (fastest, lowest memory)
+    "mrm8488/bert-tiny-finetuned-fake-news-detection",
 ]
 
 # Sentiment word lists for fallback
@@ -249,7 +256,18 @@ def analyze_content(headline: str, content: str) -> Stage3Result:
             ml_confidence = result["score"]
 
             # Normalize label to FAKE/REAL
-            if any(x in label for x in ["FAKE", "FALSE", "LABEL_0", "0"]):
+            # Different models use different label schemes:
+            #   hamzab/roberta    → "FAKE"/"REAL"
+            #   vikram71198       → "LABEL_0"=REAL, "LABEL_1"=FAKE
+            #   jy46604790        → "Fake"/"Real"
+            #   mrm8488           → "FAKE"/"REAL"
+            #   Arihant2409       → "FAKE"/"REAL"  (id2label set during training)
+            is_fake = (
+                label in ("FAKE", "LABEL_1", "1") or
+                "FAKE" in label or "FALSE" in label or
+                (label == "LABEL_0" and _pipeline_cache.get("model_name","").startswith("jy46604"))
+            )
+            if is_fake:
                 ml_label = "FAKE"
                 ml_score = ml_confidence * 85  # Scale to 0-85
             else:
