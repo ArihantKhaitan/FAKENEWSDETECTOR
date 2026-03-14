@@ -1,6 +1,6 @@
 # TruthLens — AI Fake News Detector
 
-> Multi-stage firewall pipeline that runs every article through 4 independent AI gates and compares results across 4 different transformer models simultaneously.
+> Multi-stage firewall pipeline that runs every article through 5 independent AI gates — including real-world corroboration via Google News — and compares results across 4 different transformer models simultaneously.
 
 **Live demo:** `http://localhost:3000` · **API:** `http://localhost:8000/docs` · **GitHub:** [ArihantKhaitan/FAKENEWSDETECTOR](https://github.com/ArihantKhaitan/FAKENEWSDETECTOR)
 
@@ -8,7 +8,7 @@
 
 ## What it does
 
-Paste a headline, full article text, or any news URL. TruthLens runs it through four independent analysis gates in parallel:
+Paste a headline, full article text, or any news URL. TruthLens runs it through five independent analysis gates in parallel:
 
 | Gate | What it analyzes | Key checks |
 |------|-----------------|------------|
@@ -16,8 +16,10 @@ Paste a headline, full article text, or any news URL. TruthLens runs it through 
 | **2 — Writing Style** | Body linguistics | Vocabulary richness (TTR), Flesch readability, sentence variance, quote density, weasel words, phrase repetition, first-person ratio |
 | **3 — Content AI** | Deep semantics | 4 transformer models run simultaneously, sentiment polarity, named entity density, headline-body consistency, attention word extraction |
 | **4 — Source** | Domain/URL | 200+ blacklisted domains, 50+ whitelisted outlets, TLD trust scoring, HTTPS, subdomain abuse, author byline, publication date |
+| **5 — Corroboration** | Real-world coverage | Google News RSS search — counts trusted outlets (Reuters, BBC, AP, The Hindu, etc.) independently covering the story |
 
-**Ensemble:** `15% × Gate1 + 25% × Gate2 + 40% × Gate3 + 20% × Gate4` → **REAL / SUSPICIOUS / FAKE**
+**Ensemble:** `12% × Gate1 + 20% × Gate2 + 28% × Gate3* + 20% × Gate4 + 20% × Gate5` → **REAL / SUSPICIOUS / FAKE**
+*Gate 3 weight dynamically scaled by ML model consensus (0.65–1.0×). All weights normalised to sum to 1.0.
 
 ---
 
@@ -56,7 +58,7 @@ Open **http://localhost:3000**
 
 ## Training Results (Actual — Kaggle T4 GPU)
 
-Trained on **14 March 2026**, Kaggle T4 GPU · Total wall time: **~1h 40min**
+Trained on **14 March 2026**, Kaggle T4 GPU · Total wall time: **~3h 10min** (BiLSTM ~40min + DistilBERT Phase 1 ~39min + Phase 2 ~2h 29min)
 
 ### Dataset loading
 
@@ -101,7 +103,17 @@ Base model: `distilbert-base-uncased` · 102k training examples
 | 1 | 1.2446 | 1.2263 | 0.642 | 0.642 |
 | 2 | 1.2131 | 1.1959 | **0.655** | **0.655** |
 
-**Phase 2** — Unfreeze top 2 transformer layers, fine-tune (lr=2e-5, 5 epochs, 15,995 steps) — in progress at screenshot time.
+**Phase 2** — Unfreeze top 2 transformer layers, fine-tune (lr=2e-5, 5 epochs, 15,995 steps, ~2h 29min):
+
+| Epoch | Train Loss | Val Loss | Accuracy | F1 |
+|-------|-----------|----------|----------|----|
+| 1 | 0.8368 | 0.8266 | 0.7903 | 0.7904 |
+| 2 | 0.7753 | 0.7972 | 0.7966 | 0.7966 |
+| 3 | 0.7672 | 0.8039 | **0.7987** | **0.7987** |
+| 4 | 0.7402 | 0.7967 | 0.7974 | 0.7975 |
+| 5 | 0.7252 | 0.8087 | 0.7977 | 0.7977 |
+
+**Final Test Accuracy: 0.804 · Test F1: 0.804**
 
 ---
 
@@ -183,7 +195,7 @@ First successfully loaded model is used as primary. All 4 that load are shown in
 
 | Model | Architecture | Trained on | Phase 1 Acc | Expected Final |
 |-------|-------------|-----------|-------------|----------------|
-| `Arihant2409/truthlens-fake-news-detector` | DistilBERT fine-tuned | WELFake + GonzaloA + ErfanMoosavi (126k) | 65.5% | ~90–94% |
+| `Arihant2409/truthlens-fake-news-detector` | DistilBERT fine-tuned | WELFake + GonzaloA + ErfanMoosavi (126k) | Phase 1: 65.5% → Phase 2: **80.4%** | 80.4% |
 
 ---
 
@@ -227,7 +239,8 @@ FakeNewsDetector/
 │   │   ├── stage2_style.py        Gate 2: 10+ linguistic features (TTR, Flesch, etc.)
 │   │   ├── stage3_content.py      Gate 3: 4 transformer models + comparison panel data
 │   │   ├── stage4_source.py       Gate 4: 200+ domains, TLD, HTTPS, URL structure
-│   │   └── ensemble.py            Weighted 15/25/40/20 → REAL/SUSPICIOUS/FAKE
+│   │   ├── stage5_corroboration.py Gate 5: Google News RSS — trusted outlet coverage check
+│   │   └── ensemble.py            Weighted 12/20/28*/20/20 with dynamic consensus adjustment
 │   └── utils/
 │       └── scraper.py             URL scraper (requests + BeautifulSoup, JSON-LD, OpenGraph)
 │

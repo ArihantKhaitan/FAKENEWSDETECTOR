@@ -26,10 +26,11 @@ const VCFG = {
 };
 
 const STAGES = [
-  { key: "headline" as const, index: 1, name: "Headline Analysis", icon: "◎", description: "Clickbait, caps, sensationalism", color: "#0071E3" },
-  { key: "style"    as const, index: 2, name: "Writing Style",     icon: "≋", description: "Vocabulary, quotes, weasel words", color: "#BF5AF2" },
-  { key: "content"  as const, index: 3, name: "Content AI",        icon: "◈", description: "Transformer model + semantics", color: "#30D158" },
-  { key: "source"   as const, index: 4, name: "Source Credibility",icon: "◉", description: "Domain, URL, author, date", color: "#FF9F0A" },
+  { key: "headline"      as const, index: 1, name: "Headline Analysis",     icon: "◎", description: "Clickbait, caps, sensationalism",           color: "#0071E3" },
+  { key: "style"         as const, index: 2, name: "Writing Style",         icon: "≋", description: "Vocabulary, quotes, weasel words",          color: "#BF5AF2" },
+  { key: "content"       as const, index: 3, name: "Content AI",            icon: "◈", description: "Transformer model + semantics",             color: "#30D158" },
+  { key: "source"        as const, index: 4, name: "Source Credibility",    icon: "◉", description: "Domain, URL, author, date",                 color: "#FF9F0A" },
+  { key: "corroboration" as const, index: 5, name: "External Corroboration",icon: "⊕", description: "Google News — trusted outlet coverage check", color: "#64D2FF" },
 ];
 
 function copyToClipboard(text: string) {
@@ -272,6 +273,42 @@ export default function AnalysisResult({ data }: Props) {
               accentColor={s.color}
             />
           ))}
+
+          {/* Gate 5 — sources found panel */}
+          {(() => {
+            const corr = data.stages.corroboration?.details as {
+              search_performed?: boolean;
+              trusted_sources_found?: number;
+              top_sources?: string[];
+              query?: string;
+              total_results?: number;
+            } | undefined;
+            if (!corr?.search_performed || !corr.top_sources?.length) return null;
+            const trusted = corr.trusted_sources_found ?? 0;
+            const total   = corr.total_results ?? 0;
+            const barColor = trusted >= 3 ? "#30D158" : trusted >= 1 ? "#64D2FF" : "#FF9F0A";
+            return (
+              <div className="glass animate-fade-up" style={{ padding: "16px 20px", borderRadius: "14px", borderLeft: `3px solid ${barColor}` }}>
+                <p style={{ fontSize: "10px", fontWeight: 700, color: "#98989D", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "10px" }}>
+                  Sources found ({total} result{total !== 1 ? "s" : ""})
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {corr.top_sources.map((src, i) => (
+                    <span key={i} style={{
+                      padding: "4px 10px", borderRadius: "980px", fontSize: "11px", fontWeight: 500,
+                      background: "rgba(100,210,255,0.08)", border: "1px solid rgba(100,210,255,0.2)",
+                      color: "#3D3D3F",
+                    }}>{src}</span>
+                  ))}
+                </div>
+                {corr.query && (
+                  <p style={{ fontSize: "10px", color: "#98989D", marginTop: "8px" }}>
+                    Searched: &ldquo;{corr.query}&rdquo;
+                  </p>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Right column */}
@@ -344,6 +381,7 @@ export default function AnalysisResult({ data }: Props) {
               Score Breakdown
             </p>
             {STAGES.map(s => {
+              if (!data.stage_scores[s.key] && data.stage_scores[s.key] !== 0) return null;
               const sc = data.stage_scores[s.key];
               const v = data.stage_verdicts[s.key];
               const c = v === "PASS" ? "#30D158" : v === "FAIL" ? "#FF3B30" : "#FF9F0A";

@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 
 const STAGES = [
-  { icon: "◎", label: "Analyzing headline patterns...", color: "#0071E3" },
+  { icon: "◎", label: "Analyzing headline patterns...",        color: "#0071E3" },
   { icon: "≋", label: "Examining writing style & linguistics...", color: "#BF5AF2" },
-  { icon: "◈", label: "Running transformer content model...", color: "#30D158" },
-  { icon: "◉", label: "Checking source credibility...", color: "#FF9F0A" },
-  { icon: "⊕", label: "Computing ensemble verdict...", color: "#FF3B30" },
+  { icon: "◈", label: "Running transformer content model...",  color: "#30D158" },
+  { icon: "◉", label: "Checking source credibility...",        color: "#FF9F0A" },
+  { icon: "⊕", label: "Searching news corroboration...",       color: "#64D2FF" },
+  { icon: "⚖", label: "Computing ensemble verdict...",         color: "#FF3B30" },
 ];
 
 export default function LoadingScreen() {

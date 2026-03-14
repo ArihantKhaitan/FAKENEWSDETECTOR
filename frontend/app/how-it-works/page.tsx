@@ -76,6 +76,23 @@ const GATES = [
     ],
     lab: "Rule-based domain intelligence (heuristic systems)",
   },
+  {
+    num: 5,
+    icon: "⊕",
+    color: "#64D2FF",
+    bg: "rgba(100,210,255,0.07)",
+    border: "rgba(100,210,255,0.18)",
+    name: "External Corroboration",
+    subtitle: "Does the broader news ecosystem report this story?",
+    checks: [
+      { label: "Google News RSS search", desc: "Queries Google News with the article headline — free, no API key needed" },
+      { label: "Trusted outlet count", desc: "Counts coverage from 50+ verified outlets: Reuters, BBC, AP, The Hindu, Bloomberg, etc." },
+      { label: "Suspicious domain detection", desc: "Flags if story appears only on known unreliable sites with no mainstream coverage" },
+      { label: "Coverage depth", desc: "3+ trusted outlets = strong corroboration; 0 results = new/niche story (neutral, not penalized)" },
+      { label: "Source name extraction", desc: "Lists which outlets covered the story, shown in a sources panel below the gate cards" },
+    ],
+    lab: "HTTP + XML parsing (Google News RSS, urllib, ElementTree — no external API)",
+  },
 ];
 
 const TECH = [
@@ -125,7 +142,7 @@ export default function HowItWorksPage() {
             className="animate-fade-up delay-100"
             style={{ fontSize: "19px", color: "#6E6E73", lineHeight: 1.65, maxWidth: "640px", margin: "0 auto 48px" }}
           >
-            Four independent AI gates analyze every article in parallel. Each gate scores a different dimension of credibility. The ensemble combines them into a final verdict.
+            Five independent AI gates analyze every article in parallel. Each gate scores a different dimension of credibility. The ensemble combines them into a final weighted verdict.
           </p>
 
           {/* Pipeline visual */}
@@ -140,6 +157,7 @@ export default function HowItWorksPage() {
               { label: "Style", icon: "≋", bg: "rgba(191,90,242,0.1)", color: "#BF5AF2" },
               { label: "AI Model", icon: "◈", bg: "rgba(48,209,88,0.1)", color: "#30D158" },
               { label: "Source", icon: "◉", bg: "rgba(255,159,10,0.1)", color: "#FF9F0A" },
+              { label: "Corroboration", icon: "⊕", bg: "rgba(100,210,255,0.1)", color: "#64D2FF" },
               null,
               { label: "Verdict", icon: "⚖", bg: "#1D1D1F", color: "#fff" },
             ] as ({ label: string; icon: string; bg: string; color: string } | null)[]).map((item, i) =>
@@ -235,14 +253,15 @@ export default function HowItWorksPage() {
               Ensemble Scoring
             </h2>
             <p style={{ fontSize: "15px", color: "#6E6E73", marginBottom: "32px" }}>
-              Gates are weighted by their predictive power. Content AI carries the most weight.
+              Gates are weighted by their predictive power. Content AI carries the most weight but is dynamically adjusted by model consensus.
             </p>
             <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
               {[
-                { gate: "Headline", weight: 15, color: "#0071E3" },
-                { gate: "Style", weight: 25, color: "#BF5AF2" },
-                { gate: "Content AI", weight: 40, color: "#30D158" },
+                { gate: "Headline", weight: 12, color: "#0071E3" },
+                { gate: "Style", weight: 20, color: "#BF5AF2" },
+                { gate: "Content AI", weight: 28, color: "#30D158" },
                 { gate: "Source", weight: 20, color: "#FF9F0A" },
+                { gate: "Corroboration", weight: 20, color: "#64D2FF" },
               ].map(g => (
                 <div key={g.gate} style={{
                   display: "flex", flexDirection: "column", alignItems: "center", gap: "8px",
@@ -252,15 +271,15 @@ export default function HowItWorksPage() {
                   <div style={{ fontSize: "32px", fontWeight: 700, color: g.color, letterSpacing: "-0.03em" }}>{g.weight}%</div>
                   <div style={{ fontSize: "12px", fontWeight: 600, color: "#3D3D3F" }}>{g.gate}</div>
                   <div style={{ width: "100%", height: "3px", borderRadius: "2px", background: `${g.color}20` }}>
-                    <div style={{ width: `${g.weight / 0.4}%`, height: "100%", borderRadius: "2px", background: g.color }} />
+                    <div style={{ width: `${g.weight / 0.28}%`, height: "100%", borderRadius: "2px", background: g.color }} />
                   </div>
                 </div>
               ))}
             </div>
             <div style={{ marginTop: "24px", padding: "14px 20px", background: "rgba(0,0,0,0.03)", borderRadius: "12px", fontSize: "13px", color: "#6E6E73" }}>
-              Score {"<"} 40 → <strong style={{ color: "#30D158" }}>REAL</strong>
-              {" | "} 40–65 → <strong style={{ color: "#FF9F0A" }}>SUSPICIOUS</strong>
-              {" | "} {">"} 65 → <strong style={{ color: "#FF3B30" }}>FAKE</strong>
+              Score {"<"} 31 → <strong style={{ color: "#30D158" }}>REAL</strong>
+              {" | "} 31–55 → <strong style={{ color: "#FF9F0A" }}>SUSPICIOUS</strong>
+              {" | "} {">"} 55 → <strong style={{ color: "#FF3B30" }}>FAKE</strong>
             </div>
           </div>
         </section>

@@ -18,6 +18,7 @@ export type AnalysisData = {
     style: StageData;
     content: StageData;
     source: StageData;
+    corroboration: StageData;
   };
   stage_scores: Record<string, number>;
   stage_verdicts: Record<string, string>;
@@ -44,6 +45,7 @@ const STAGES = [
   { icon: "≋", label: "Style", color: "#BF5AF2", desc: "TTR, Flesch score, quote density, weasel words, formality" },
   { icon: "◈", label: "Content AI", color: "#30D158", desc: "4 transformer models compared in parallel — RoBERTa, DistilRoBERTa, BERT-base, BERT-tiny" },
   { icon: "◉", label: "Source", color: "#FF9F0A", desc: "200+ domain blacklist, TLD trust, HTTPS, URL structure" },
+  { icon: "⊕", label: "Corroboration", color: "#64D2FF", desc: "Google News search — checks if trusted outlets independently cover this story" },
 ];
 
 export default function Home() {
@@ -162,7 +164,7 @@ export default function Home() {
             >
               {[
                 { icon: "🧠", label: "130k articles trained", color: "#0071E3" },
-                { icon: "⚡", label: "4 AI gates", color: "#BF5AF2" },
+                { icon: "⚡", label: "5 AI gates", color: "#BF5AF2" },
                 { icon: "🎯", label: "Real-time analysis", color: "#30D158" },
               ].map((b, i) => (
                 <div
@@ -199,7 +201,7 @@ export default function Home() {
                 marginBottom: "20px", fontWeight: 400,
               }}
             >
-              Paste a headline, article, or URL. Four AI gates analyze{" "}
+              Paste a headline, article, or URL. Five AI gates analyze{" "}
               <strong style={{ color: "#3D3D3F", fontWeight: 500 }}>headline patterns</strong>,{" "}
               <strong style={{ color: "#3D3D3F", fontWeight: 500 }}>writing style</strong>,{" "}
               <strong style={{ color: "#3D3D3F", fontWeight: 500 }}>content semantics</strong>, and{" "}
@@ -251,7 +253,7 @@ export default function Home() {
                       </div>
                     )}
                   </div>
-                  {i < 3 && (
+                  {i < STAGES.length - 1 && (
                     <div style={{ display: "flex", alignItems: "center", paddingTop: "10px" }}>
                       <svg width="18" height="10" viewBox="0 0 18 10" fill="none">
                         <path d="M1 5h14M11 1l4 4-4 4" stroke={hoveredStage === i || hoveredStage === i + 1 ? STAGES[i].color : "rgba(0,0,0,0.18)"} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "stroke 0.3s" }} />
@@ -317,10 +319,7 @@ export default function Home() {
         {!loading && (
           <footer style={{ padding: "48px 24px", textAlign: "center", borderTop: "1px solid rgba(255,255,255,0.5)", marginTop: "60px" }}>
             <p style={{ color: "#98989D", fontSize: "13px" }}>
-              TruthLens · 4-Stage AI Pipeline · Results are probabilistic — always verify with trusted sources
-            </p>
-            <p style={{ color: "#C0C0C8", fontSize: "12px", marginTop: "6px" }}>
-              Deep Learning Lab · BiLSTM + Attention + BERT Transfer Learning
+              TruthLens · 5-Stage AI Pipeline · Results are probabilistic — always verify with trusted sources
             </p>
           </footer>
         )}

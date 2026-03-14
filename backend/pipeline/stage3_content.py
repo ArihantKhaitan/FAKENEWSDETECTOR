@@ -137,6 +137,15 @@ def _get_hf_pipeline(task="text-classification"):
                         truncation=True,
                         max_length=512,
                     )
+                    # DistilBERT models use a BERT tokenizer that emits token_type_ids,
+                    # but DistilBERT's forward() doesn't accept them → remove from inputs.
+                    try:
+                        clf.tokenizer.model_input_names = [
+                            n for n in clf.tokenizer.model_input_names
+                            if n != "token_type_ids"
+                        ]
+                    except Exception:
+                        pass
                     _pipeline_cache["classifier"] = clf
                     _pipeline_cache["model_name"] = model_name
                     print(f"[Stage3] Model loaded: {model_name}")
@@ -171,6 +180,14 @@ def _load_single_model(model_id: str):
                 truncation=True,
                 max_length=512,
             )
+            # Same DistilBERT fix: strip token_type_ids from tokenizer outputs
+            try:
+                clf.tokenizer.model_input_names = [
+                    n for n in clf.tokenizer.model_input_names
+                    if n != "token_type_ids"
+                ]
+            except Exception:
+                pass
             _model_cache[model_id] = clf
             print(f"[Stage3] Loaded comparison model: {model_id}")
             return clf

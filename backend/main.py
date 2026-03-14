@@ -22,6 +22,7 @@ from pipeline.stage1_headline import analyze_headline
 from pipeline.stage2_style import analyze_style
 from pipeline.stage3_content import analyze_content, preload_all_models, get_models_status
 from pipeline.stage4_source import analyze_source
+from pipeline.stage5_corroboration import analyze_corroboration
 from pipeline.ensemble import combine
 from utils.scraper import scrape_article
 
@@ -95,14 +96,15 @@ def run_pipeline(
     """Run the full 4-stage pipeline and return a structured response."""
     t_start = time.time()
 
-    # Run all 4 stages
+    # Run all 5 stages
     s1 = analyze_headline(headline)
     s2 = analyze_style(content)
     s3 = analyze_content(headline, content)
     s4 = analyze_source(url=url, content=content, headline=headline)
+    s5 = analyze_corroboration(headline, content)
 
     # Ensemble
-    result = combine(s1, s2, s3, s4, url=url)
+    result = combine(s1, s2, s3, s4, s5, url=url)
 
     processing_ms = (time.time() - t_start) * 1000
 
@@ -114,28 +116,24 @@ def run_pipeline(
         key_flags=result.key_flags,
         stages={
             "headline": StageResult(
-                score=s1.score,
-                verdict=s1.verdict,
-                flags=s1.flags,
-                details=s1.details,
+                score=s1.score, verdict=s1.verdict,
+                flags=s1.flags, details=s1.details,
             ),
             "style": StageResult(
-                score=s2.score,
-                verdict=s2.verdict,
-                flags=s2.flags,
-                details=s2.details,
+                score=s2.score, verdict=s2.verdict,
+                flags=s2.flags, details=s2.details,
             ),
             "content": StageResult(
-                score=s3.score,
-                verdict=s3.verdict,
-                flags=s3.flags,
-                details=s3.details,
+                score=s3.score, verdict=s3.verdict,
+                flags=s3.flags, details=s3.details,
             ),
             "source": StageResult(
-                score=s4.score,
-                verdict=s4.verdict,
-                flags=s4.flags,
-                details=s4.details,
+                score=s4.score, verdict=s4.verdict,
+                flags=s4.flags, details=s4.details,
+            ),
+            "corroboration": StageResult(
+                score=s5.score, verdict=s5.verdict,
+                flags=s5.flags, details=s5.details,
             ),
         },
         stage_scores=result.stage_scores,

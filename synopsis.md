@@ -12,7 +12,7 @@
 
 The rapid spread of misinformation on digital news platforms poses a critical threat to public discourse and democratic processes. Traditional single-model fake news classifiers are brittle — they can be fooled by writing style changes or domain spoofing. This project presents **TruthLens**, a multi-stage, multi-signal detection system modeled on the concept of a security firewall.
 
-Every article passes through **four independent analysis gates** — Headline Analysis, Writing Style, Deep Learning Content Analysis, and Source Credibility — before a weighted ensemble produces a final verdict. Gate 3 uniquely runs **four different transformer models simultaneously** and compares their predictions, giving a more robust and interpretable result than any single model could.
+Every article passes through **five independent analysis gates** — Headline Analysis, Writing Style, Deep Learning Content Analysis, Source Credibility, and External Corroboration — before a weighted ensemble produces a final verdict. Gate 3 uniquely runs **four different transformer models simultaneously** and compares their predictions, giving a more robust and interpretable result than any single model could, while Gate 5 searches Google News to verify whether trusted outlets independently report the same story.
 
 The system is deployed as a full-stack application: a **FastAPI Python backend** running the AI pipeline and a **Next.js 16 + React 19 premium web dashboard** for interaction. Training is performed on **Kaggle (free T4 GPU)** using datasets pulled directly from **HuggingFace Hub**, with the resulting model pushed back to HuggingFace for deployment.
 
@@ -30,7 +30,7 @@ Given a news article (headline + body text, and optionally a source URL):
 
 ## 3. System Architecture
 
-### 3.1 Four-Gate Firewall Pipeline
+### 3.1 Five-Gate Firewall Pipeline
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -41,23 +41,26 @@ Given a news article (headline + body text, and optionally a source URL):
           │  URL SCRAPER    │  JSON-LD, OpenGraph, CSS selectors
           └────────┬────────┘
                    │
-    ┌──────────────┴──────────────────────────────┐
-    │         RUNS IN PARALLEL                    │
-    ▼              ▼              ▼               ▼
-┌────────┐  ┌──────────┐  ┌───────────┐  ┌──────────┐
-│ GATE 1 │  │  GATE 2  │  │  GATE 3   │  │  GATE 4  │
-│Headline│  │  Style   │  │Content AI │  │  Source  │
-│  15%   │  │   25%    │  │   40%     │  │   20%    │
-└────┬───┘  └─────┬────┘  └─────┬─────┘  └────┬─────┘
-     │            │             │              │
-     └────────────┴─────────────┴──────────────┘
+    ┌──────────────┴────────────────────────────────────────┐
+    │                  RUNS IN PARALLEL                     │
+    ▼              ▼              ▼               ▼         ▼
+┌────────┐  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌──────────┐
+│ GATE 1 │  │  GATE 2  │  │  GATE 3   │  │  GATE 4  │  │  GATE 5  │
+│Headline│  │  Style   │  │Content AI │  │  Source  │  │ Corrobor.│
+│  12%   │  │   20%    │  │   28%*    │  │   20%    │  │   20%    │
+└────┬───┘  └─────┬────┘  └─────┬─────┘  └────┬─────┘  └────┬─────┘
+     │            │             │              │             │
+     └────────────┴─────────────┴──────────────┴─────────────┘
                           │
                  ┌────────▼────────┐
                  │   ENSEMBLE      │
                  │  Weighted sum   │
-                 │  0–39  → REAL   │
-                 │  40–65 → SUSP.  │
-                 │  66–100→ FAKE   │
+                 │  *Gate 3 weight │
+                 │  adjusted by    │
+                 │  model consensus│
+                 │  0–30  → REAL   │
+                 │  31–55 → SUSP.  │
+                 │  56–100→ FAKE   │
                  └─────────────────┘
 ```
 
@@ -133,19 +136,36 @@ Analyzes the URL/domain and article metadata:
 | Publication date | Articles with no date are often undated for a reason |
 | External link density | Real journalism cites other sources |
 
-### 3.6 Ensemble Verdict Engine
+### 3.6 Gate 5 — External Corroboration (New)
+
+Searches **Google News RSS** (free, no API key required) for the article headline and checks how many credible outlets independently cover the same story.
+
+| Check | Description |
+|-------|-------------|
+| Google News RSS query | First 9 words of headline searched via `news.google.com/rss/search` |
+| Trusted outlet matching | 50+ outlets: Reuters, AP, BBC, NYT, The Hindu, Bloomberg, etc. |
+| Suspicious domain detection | Flags if story appears only on sites like InfoWars, NaturalNews, RT |
+| Coverage scoring | 3+ trusted outlets → score 8 (PASS); 0 results → score 38 (WARN, neutral); Only bad domains → score 65 (FAIL) |
+| Data quality flag | If network fails → `data_quality="none"`, ensemble reduces Gate 5 weight to ~8% |
+
+**Why this matters**: The DL models (Gate 3) recognize *writing patterns* of fake news but cannot verify facts. Gate 5 checks the real world — if Reuters, AP, and BBC all report the same story, it's almost certainly real regardless of writing style.
+
+### 3.7 Ensemble Verdict Engine
 
 ```python
+# Base weights (dynamically adjusted at runtime)
 risk_score = (
-    0.15 * gate1_score +
-    0.25 * gate2_score +
-    0.40 * gate3_score +   # ML model gets highest weight
-    0.20 * gate4_score
+    0.12 * gate1_score +
+    0.20 * gate2_score +
+    0.28 * gate3_score * consensus_factor +   # 0.65–1.0 based on model agreement
+    0.20 * gate4_score +
+    0.20 * gate5_score * data_quality_factor  # reduced if no corroboration data
 )
+# All weights normalised to sum to 1.0 after adjustments
 
 verdict = (
-    "REAL"       if risk_score < 40  else
-    "SUSPICIOUS" if risk_score < 66  else
+    "REAL"       if risk_score < 31  else
+    "SUSPICIOUS" if risk_score < 56  else
     "FAKE"
 )
 ```
@@ -303,7 +323,7 @@ tokenizer.push_to_hub("Arihant2409/truthlens-fake-news-detector")
 api.upload_file("bilstm_best.pt", ...)
 ```
 
-### 5.4 Actual Training Results (Kaggle T4 GPU · 14 March 2026 · ~1h 40min total)
+### 5.4 Actual Training Results (Kaggle T4 GPU · 14 March 2026 · ~3h 10min total)
 
 #### BiLSTM + Bahdanau Attention — Full Training Log
 
@@ -338,9 +358,19 @@ Phase 1 conclusion: classification head learned basic real/fake discrimination f
 
 #### DistilBERT — Phase 2 (Unfreeze top 2 layers, fine-tune)
 
-Hyperparams: lr=2e-5 · batch=16 · up to 5 epochs · 15,995 steps — *in progress at time of recording*
+Hyperparams: lr=2e-5 · batch=16 · 5 epochs · 15,995 steps · ~2h 29min
 
-> Phase 2 expected to reach **90–94% accuracy** as the unfrozen transformer layers adapt to fake news domain vocabulary.
+| Epoch | Train Loss | Val Loss | Val Accuracy | Val F1 |
+|-------|-----------|----------|--------------|--------|
+| 1 | 0.8368 | 0.8266 | 0.7903 | 0.7904 |
+| 2 | 0.7753 | 0.7972 | 0.7966 | 0.7966 |
+| 3 | 0.7672 | 0.8039 | **0.7987** | **0.7987** |
+| 4 | 0.7402 | 0.7967 | 0.7974 | 0.7975 |
+| 5 | 0.7252 | 0.8087 | 0.7977 | 0.7977 |
+
+**Final Test Accuracy: 0.804 · Test F1: 0.804**
+
+Best epoch: 3 (Val 79.87%). Test set confirms 80.4% — significant improvement over Phase 1's 65.5%. The model is pushed to `Arihant2409/truthlens-fake-news-detector` on HuggingFace Hub.
 
 #### Summary Table
 
@@ -348,8 +378,8 @@ Hyperparams: lr=2e-5 · batch=16 · up to 5 epochs · 15,995 steps — *in progr
 |-------|-------------|---------------|---------------|
 | BiLSTM + Attention | 0.752 | **0.755** | ~25 min |
 | DistilBERT Phase 1 | 0.655 | — | ~40 min |
-| DistilBERT Phase 2 | in progress | ~90–94% expected | ~35 min |
-| **Total wall time** | | | **~1h 40min** |
+| DistilBERT Phase 2 | 0.799 | **0.804** | ~2h 29min |
+| **Total wall time** | | | **~3h 10min** |
 
 ---
 
@@ -504,7 +534,8 @@ FakeNewsDetector/
 │   │   ├── stage2_style.py        10+ linguistic features
 │   │   ├── stage3_content.py      4-model ML comparison + NLP features
 │   │   ├── stage4_source.py       200+ domain blacklist + URL analysis
-│   │   └── ensemble.py            Weighted 15/25/40/20 verdict engine
+│   │   ├── stage5_corroboration.py  Gate 5: Google News RSS corroboration check
+│   │   └── ensemble.py            Weighted 12/20/28/20/20 with dynamic consensus adjustment
 │   └── utils/
 │       └── scraper.py             URL scraper (BeautifulSoup, JSON-LD, OG tags)
 │
@@ -534,7 +565,7 @@ FakeNewsDetector/
 
 ## 13. Key Technical Innovations
 
-1. **Multi-stage firewall** — no single model decides; 4 independent analytical signals are weighted and combined, making the system robust to adversarial writing
+1. **Multi-stage firewall** — no single model decides; 5 independent analytical signals are weighted and combined, making the system robust to adversarial writing
 2. **4-model simultaneous comparison** — shows consensus across multiple transformer architectures; disagreement signals borderline content requiring human judgment
 3. **Explainability via attention** — Bahdanau attention weights are extracted and visualized as a word cloud, making the model's decision interpretable
 4. **URL-native analysis** — paste any news URL; BeautifulSoup scraper extracts headline and body automatically via JSON-LD, OpenGraph, and CSS selectors
@@ -542,6 +573,7 @@ FakeNewsDetector/
 6. **Combined training corpus** — 3 datasets merged (126,345 actual articles) covering news and multiple domains; class-balanced (61,525 real / 64,820 fake)
 7. **HuggingFace-native workflow** — training data loaded from HF Hub, trained model pushed back to HF Hub, inference via HF `pipeline()` — modern production ML workflow
 8. **Rich linguistic gate (Gate 2)** — 10+ classical NLP features computed without ML, providing interpretable signals that complement the transformer models
+9. **External corroboration (Gate 5)** — Google News RSS searched for every article headline; trusted outlet coverage count directly influences the verdict score, providing real-world fact-grounding that pure ML cannot offer
 
 ---
 
@@ -577,6 +609,7 @@ TruthLens demonstrates how a **layered, multi-signal approach** significantly ou
 - **Rule-based linguistic analysis** (Gate 1 & 2) for fast, interpretable features
 - **Multi-model transformer ensemble** (Gate 3) for deep semantic understanding
 - **Domain intelligence** (Gate 4) for source credibility
+- **External corroboration** (Gate 5) for real-world fact-grounding via Google News
 - **Proper ML training practices** (Labs 2–9: autograd, transfer learning, BiLSTM, attention, regularization)
 - **Modern deployment** (FastAPI + HuggingFace Hub + Next.js 16)
 
