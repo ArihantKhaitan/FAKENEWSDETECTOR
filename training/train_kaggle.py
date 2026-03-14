@@ -110,7 +110,7 @@ def load_and_standardize():
     LIAR_REAL = {"true", "mostly-true"}
     LIAR_FAKE = {"false", "pants-fire", "pants on fire"}
     try:
-        liar = load_dataset("ucsbnlp/liar", split="train")
+        liar = load_dataset("ucsbnlp/liar", split="train", trust_remote_code=True)
         for row in liar:
             statement = row.get("statement", "")
             raw_label = str(row.get("label", "")).lower().strip()
@@ -475,7 +475,6 @@ trainer_phase1 = Trainer(
     args=phase1_args,
     train_dataset=hf_train,
     eval_dataset=hf_val,
-    tokenizer=tokenizer,
     data_collator=DataCollatorWithPadding(tokenizer),
     compute_metrics=compute_metrics,
     callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],  # Lab 7
@@ -513,7 +512,6 @@ trainer_phase2 = Trainer(
     args=phase2_args,
     train_dataset=hf_train,
     eval_dataset=hf_val,
-    tokenizer=tokenizer,
     data_collator=DataCollatorWithPadding(tokenizer),
     compute_metrics=compute_metrics,
     callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],

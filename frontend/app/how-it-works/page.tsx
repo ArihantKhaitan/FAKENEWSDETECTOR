@@ -50,13 +50,13 @@ const GATES = [
     name: "Transformer Content AI",
     subtitle: "Deep semantic understanding via BERT-class model",
     checks: [
-      { label: "RoBERTa classification", desc: "Pre-trained on 72k WELFake articles, fine-tuned with 2-phase transfer learning" },
+      { label: "4-model ensemble", desc: "DistilRoBERTa, RoBERTa, BERT-base, BERT-tiny — all run in parallel, results compared" },
       { label: "Sentiment extremity", desc: "Extreme sentiment in factual reporting is anomalous" },
       { label: "Named entity density", desc: "Thin on real names/places/orgs suggests fabrication" },
       { label: "Headline-body consistency", desc: "Checks if the headline matches the actual article content" },
       { label: "Attention word extraction", desc: "Bahdanau attention highlights the most suspicious words" },
     ],
-    lab: "Transfer Learning + BiLSTM + Attention (Labs 6, 8, 9)",
+    lab: "4 Transformers + BiLSTM + Bahdanau Attention (Labs 6, 8, 9, Custom)",
   },
   {
     num: 4,

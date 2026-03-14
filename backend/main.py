@@ -16,10 +16,11 @@ from pydantic import BaseModel, HttpUrl, ConfigDict
 from typing import Optional, List, Dict
 import time
 import asyncio
+import threading
 
 from pipeline.stage1_headline import analyze_headline
 from pipeline.stage2_style import analyze_style
-from pipeline.stage3_content import analyze_content
+from pipeline.stage3_content import analyze_content, preload_all_models, get_models_status
 from pipeline.stage4_source import analyze_source
 from pipeline.ensemble import combine
 from utils.scraper import scrape_article
@@ -40,6 +41,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def startup_preload():
+    """Kick off model loading in a background thread immediately at startup."""
+    thread = threading.Thread(target=preload_all_models, daemon=True)
+    thread.start()
 
 
 # ── Request/Response Models ────────────────────────────────────────────────
@@ -149,6 +157,12 @@ def run_pipeline(
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "version": "2.0.0"}
+
+
+@app.get("/api/status")
+async def model_status():
+    """Returns whether ML models are loaded and ready to serve requests."""
+    return get_models_status()
 
 
 @app.post("/api/analyze", response_model=AnalysisResponse)

@@ -31,12 +31,15 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
+> **First startup:** models load automatically in the background (~30s). The frontend shows a "models loading" banner and disables the Analyze button until ready.
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/analyze` | POST | Analyze headline + article text |
 | `/api/analyze-url` | POST | Scrape a URL and analyze |
 | `/api/demo` | GET | Run a demo fake article |
 | `/api/health` | GET | Health check |
+| `/api/status` | GET | Model loading status |
 | `/docs` | GET | Interactive Swagger UI |
 
 ### 2. Frontend
@@ -48,6 +51,57 @@ npx next dev -p 3000
 ```
 
 Open **http://localhost:3000**
+
+---
+
+## Training Results (Actual — Kaggle T4 GPU)
+
+Trained on **14 March 2026**, Kaggle T4 GPU · Total wall time: **~1h 40min**
+
+### Dataset loading
+
+| Dataset | Loaded | Examples |
+|---------|--------|----------|
+| `davanstrien/WELFake` | ✓ | 72,134 |
+| `GonzaloA/fake_news` | ✓ | +24,350 |
+| `ucsbnlp/liar` | ✗ failed (dataset scripts deprecated) | 0 |
+| `ErfanMoosaviMonazzah/fake-news-detection-dataset-English` | ✓ | +29,861 |
+| **Total** | | **126,345** |
+
+- Real (label 0): **61,525** · Fake (label 1): **64,820** (balanced)
+- Split → Train: **102,339** / Val: **11,371** / Test: **12,635**
+
+### Model A — BiLSTM + Bahdanau Attention
+
+Vocab size: **30,000** words · Sequence length: 256 · hidden_dim: 256 · 2 layers · Dropout: 0.3
+
+| Epoch | Loss | Train Acc | Val Acc |
+|-------|------|-----------|---------|
+| 1 | 0.6100 | 0.641 | 0.709 |
+| 2 | 0.5347 | 0.712 | 0.730 |
+| 3 | 0.5034 | 0.735 | 0.741 |
+| 4 | 0.4809 | 0.746 | 0.744 |
+| 5 | 0.4667 | 0.755 | 0.746 |
+| 6 | 0.4628 | 0.757 | 0.746 |
+| 7 | 0.4623 | 0.758 | 0.746 |
+| 8 | 0.4652 | 0.756 | 0.745 |
+| 9 | 0.4647 | 0.756 | 0.749 |
+| 10 | 0.4625 | 0.758 | **0.752** |
+
+**Best Val Accuracy: 0.752 · Test Accuracy: 0.755**
+
+### Model B — DistilBERT Transfer Learning (Lab 6)
+
+Base model: `distilbert-base-uncased` · 102k training examples
+
+**Phase 1** — Freeze backbone, train classification head only (lr=5e-4, 2 epochs, 3200 steps):
+
+| Epoch | Train Loss | Val Loss | Accuracy | F1 |
+|-------|-----------|----------|----------|----|
+| 1 | 1.2446 | 1.2263 | 0.642 | 0.642 |
+| 2 | 1.2131 | 1.1959 | **0.655** | **0.655** |
+
+**Phase 2** — Unfreeze top 2 transformer layers, fine-tune (lr=2e-5, 5 epochs, 15,995 steps) — in progress at screenshot time.
 
 ---
 
@@ -78,23 +132,21 @@ login("hf_YOUR_TOKEN_HERE")
 
 Upload `training/train_kaggle.py` and run it. The script automatically:
 
-1. **Loads 4 datasets from HuggingFace Hub** (~130k total examples):
+1. **Loads 3 datasets from HuggingFace Hub** (126,345 total examples — LIAR skipped, deprecated):
    - `davanstrien/WELFake` — 72,134 news articles (Wikipedia + Reuters + BuzzFeed + PolitiFact)
-   - `ucsbnlp/liar` — 12,836 political claims, rated by journalists (binarized to real/fake)
-   - `GonzaloA/fake_news` — 20,000+ mixed fake/real articles
-   - `ErfanMoosaviMonazzah/fake-news-detection-dataset-English` — 10,000 articles
+   - `GonzaloA/fake_news` — 24,350 mixed fake/real articles
+   - `ErfanMoosaviMonazzah/fake-news-detection-dataset-English` — 29,861 articles
 
 2. **Trains BiLSTM + Bahdanau Attention from scratch** (covers Labs 8, 9, Custom, 3, 7, 2):
-   - Word vocabulary built from training corpus (30k words)
-   - 2-layer BiLSTM encoder, hidden_dim=256
+   - Word vocabulary: 30,000 words built from training corpus
+   - 2-layer BiLSTM encoder, hidden_dim=256, bidirectional → 512-dim context
    - Bahdanau additive attention mechanism
-   - Dropout + weight_decay + gradient clipping + EarlyStopping (Lab 7)
-   - Expected accuracy: ~88–92%
+   - Dropout(0.3) + weight_decay=0.01 + gradient clipping + EarlyStopping
+   - **Achieved: Val 0.752 / Test 0.755** in 10 epochs
 
 3. **Fine-tunes DistilBERT** with 2-phase Transfer Learning (covers Lab 6):
-   - Phase 1 (2 epochs): Freeze all 6 transformer layers, train only classification head
+   - Phase 1 (2 epochs): Freeze all 6 transformer layers, train only classification head — **65.5% accuracy**
    - Phase 2 (5 epochs): Unfreeze top 2 transformer layers, fine-tune at lr=2e-5
-   - Expected accuracy: **~93–96%**
 
 4. **Pushes trained model to HuggingFace Hub** as `Arihant2409/truthlens-fake-news-detector`
 
@@ -129,21 +181,21 @@ First successfully loaded model is used as primary. All 4 that load are shown in
 
 ### Custom trained model (after running train_kaggle.py)
 
-| Model | Architecture | Trained on | Expected Accuracy |
-|-------|-------------|-----------|-------------------|
-| `Arihant2409/truthlens-fake-news-detector` | DistilBERT fine-tuned | WELFake + LIAR + GonzaloA + ErfanMoosavi (~130k) | ~93–96% |
+| Model | Architecture | Trained on | Phase 1 Acc | Expected Final |
+|-------|-------------|-----------|-------------|----------------|
+| `Arihant2409/truthlens-fake-news-detector` | DistilBERT fine-tuned | WELFake + GonzaloA + ErfanMoosavi (126k) | 65.5% | ~90–94% |
 
 ---
 
 ## Datasets
 
-| Dataset | Size | Content | Source |
-|---------|------|---------|--------|
-| WELFake | 72,134 | News articles from Wikipedia, Reuters, BuzzFeed, PolitiFact | HuggingFace: `davanstrien/WELFake` |
-| LIAR | 12,836 | Political statements rated by PolitiFact journalists | HuggingFace: `ucsbnlp/liar` |
-| GonzaloA/fake_news | ~20,000 | Mixed news articles | HuggingFace: `GonzaloA/fake_news` |
-| ErfanMoosaviMonazzah | ~10,000 | English news | HuggingFace: `ErfanMoosaviMonazzah/...` |
-| **Total training corpus** | **~130,000** | | |
+| Dataset | Actual Size | Content | Source |
+|---------|-------------|---------|--------|
+| WELFake | **72,134** | News articles from Wikipedia, Reuters, BuzzFeed, PolitiFact | `davanstrien/WELFake` |
+| GonzaloA/fake_news | **24,350** | Mixed news articles (train split) | `GonzaloA/fake_news` |
+| ErfanMoosaviMonazzah | **29,861** | English news (all splits combined) | `ErfanMoosaviMonazzah/...` |
+| LIAR | 0 (failed) | Dataset scripts deprecated on HuggingFace | `ucsbnlp/liar` |
+| **Total training corpus** | **126,345** | Real: 61,525 · Fake: 64,820 | |
 
 See `training/DATASETS.md` for additional datasets (ISOT, FakeNewsNet, COVID-19, etc.)
 
@@ -155,7 +207,7 @@ See `training/DATASETS.md` for additional datasets (ISOT, FakeNewsNet, COVID-19,
 |-----|---------|--------------------------|
 | Lab 2 | Autograd & backpropagation | `loss.backward()` in BiLSTM training loop; gradients flow through attention weights automatically |
 | Lab 3 | Linear layers, ReLU | Classifier head: `Linear(512→256) → ReLU → Dropout → Linear(256→2)` |
-| Lab 6 | Transfer Learning | DistilBERT: Phase 1 freeze all → train head; Phase 2 unfreeze top 2 layers → fine-tune |
+| Lab 6 | Transfer Learning | DistilBERT: Phase 1 freeze all → train head (65.5%); Phase 2 unfreeze top 2 layers → fine-tune |
 | Lab 7 | Regularization | Dropout(0.3) in 3 locations, weight_decay=0.01, gradient clipping (max_norm=1.0), EarlyStopping patience=5, CosineAnnealingLR |
 | Lab 8 | LSTM | `nn.LSTM(embed_dim, hidden=256, num_layers=2, batch_first=True)` as sequence encoder |
 | Lab 9 | Bidirectional RNN | `bidirectional=True` → forward + backward hidden states concatenated: dim = 512 |
@@ -168,7 +220,7 @@ See `training/DATASETS.md` for additional datasets (ISOT, FakeNewsNet, COVID-19,
 ```
 FakeNewsDetector/
 ├── backend/
-│   ├── main.py                    FastAPI app, CORS, 4 endpoints
+│   ├── main.py                    FastAPI app, CORS, startup preload, 5 endpoints
 │   ├── requirements.txt
 │   ├── pipeline/
 │   │   ├── stage1_headline.py     Gate 1: 8 headline checks (regex + wordlists)
@@ -191,7 +243,7 @@ FakeNewsDetector/
 │       │   └── page.tsx           Dedicated "How it works" page
 │       └── components/
 │           ├── Navbar.tsx         Frosted glass navbar with working links
-│           ├── HeroInput.tsx      Text / URL tab input card
+│           ├── HeroInput.tsx      Text / URL tab input card + model loading banner
 │           ├── LoadingScreen.tsx  Stage-by-stage animated loading
 │           ├── AnalysisResult.tsx Full dashboard with model comparison panel
 │           ├── StageCard.tsx      Collapsible per-gate detail card
@@ -199,7 +251,7 @@ FakeNewsDetector/
 │           └── FloatingCards.tsx  6 glass cards that drift + bounce around viewport
 │
 └── training/
-    ├── train_kaggle.py            Full Kaggle training (BiLSTM + DistilBERT, 4 datasets, HF push)
+    ├── train_kaggle.py            Full Kaggle training (BiLSTM + DistilBERT, 3 datasets, HF push)
     ├── train_colab.py             Google Colab alternative training script
     └── DATASETS.md                10 dataset sources with download links
 ```
@@ -212,6 +264,7 @@ FakeNewsDetector/
 - **Animated mesh background** — 4 CSS orbs (blue/purple/green/orange) with keyframe float animations
 - **Floating bouncing cards** — 6 glass info cards drift around the viewport and reflect off edges
 - **Interactive pipeline pills** — hover over Headline/Style/Content AI/Source to see tooltip with gate details
+- **Model loading banner** — amber banner + disabled button while models warm up; auto-enables when ready
 - **Animated SVG risk gauge** — arc with eased counter animation, glow filter, end-cap dot
 - **Model comparison panel** — all loaded models shown with confidence bars and consensus badge
 - **Attention word cloud** — words sized/colored by attention weight
@@ -228,16 +281,8 @@ FakeNewsDetector/
 | Scraping | requests, BeautifulSoup4 |
 | Frontend | Next.js 16, React 19, TypeScript |
 | Styling | Tailwind CSS + custom liquid glass CSS |
-| Training | Kaggle (T4 GPU, free) / Google Colab |
+| Training | Kaggle (T4 GPU, free, ~1h 40min) |
 | Model hosting | HuggingFace Hub |
-
----
-
-## Screenshots
-
-| Home page | Analysis result | How it works |
-|-----------|----------------|--------------|
-| Liquid glass UI with floating cards | Verdict banner + 4 gate cards + model comparison | Gate breakdowns + ensemble weights |
 
 ---
 

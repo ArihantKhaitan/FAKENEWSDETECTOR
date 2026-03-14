@@ -21,12 +21,15 @@ The model is loaded lazily and cached after first call.
 import re
 import os
 import math
+import threading
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 from functools import lru_cache
 
 # Will be imported lazily to avoid crash if not installed
 _pipeline_cache = {}
+_load_lock = threading.Lock()          # prevents race condition on primary model
+_model_lock = threading.Lock()         # prevents race condition on comparison models
 
 HF_MODELS = [
     # 1. Custom trained model (130k articles, WELFake+LIAR+more) — use after running train_kaggle.py
@@ -108,65 +111,96 @@ class Stage3Result:
 
 
 def _get_hf_pipeline(task="text-classification"):
-    """Lazily load HuggingFace pipeline, trying models in order."""
+    """Lazily load HuggingFace pipeline, trying models in order. Thread-safe."""
     global _pipeline_cache
     if "classifier" in _pipeline_cache:
         return _pipeline_cache["classifier"], _pipeline_cache["model_name"]
 
-    try:
-        from transformers import pipeline as hf_pipeline
-        import torch
+    with _load_lock:
+        # double-check after acquiring lock
+        if "classifier" in _pipeline_cache:
+            return _pipeline_cache["classifier"], _pipeline_cache["model_name"]
 
-        device = 0 if torch.cuda.is_available() else -1
+        try:
+            from transformers import pipeline as hf_pipeline
+            import torch
 
-        for model_name in HF_MODELS:
-            try:
-                print(f"[Stage3] Loading model: {model_name}")
-                clf = hf_pipeline(
-                    task,
-                    model=model_name,
-                    device=device,
-                    truncation=True,
-                    max_length=512,
-                )
-                _pipeline_cache["classifier"] = clf
-                _pipeline_cache["model_name"] = model_name
-                print(f"[Stage3] Model loaded: {model_name}")
-                return clf, model_name
-            except Exception as e:
-                print(f"[Stage3] Failed to load {model_name}: {e}")
-                continue
+            device = 0 if torch.cuda.is_available() else -1
 
-    except ImportError:
-        print("[Stage3] transformers not installed — using heuristic fallback")
+            for model_name in HF_MODELS:
+                try:
+                    print(f"[Stage3] Loading model: {model_name}")
+                    clf = hf_pipeline(
+                        task,
+                        model=model_name,
+                        device=device,
+                        truncation=True,
+                        max_length=512,
+                    )
+                    _pipeline_cache["classifier"] = clf
+                    _pipeline_cache["model_name"] = model_name
+                    print(f"[Stage3] Model loaded: {model_name}")
+                    return clf, model_name
+                except Exception as e:
+                    print(f"[Stage3] Failed to load {model_name}: {e}")
+                    continue
 
-    _pipeline_cache["classifier"] = None
-    _pipeline_cache["model_name"] = "heuristic"
-    return None, "heuristic"
+        except ImportError:
+            print("[Stage3] transformers not installed — using heuristic fallback")
+
+        _pipeline_cache["classifier"] = None
+        _pipeline_cache["model_name"] = "heuristic"
+        return None, "heuristic"
 
 
 def _load_single_model(model_id: str):
-    """Load a single model pipeline, cached per model_id. Returns None on failure."""
+    """Load a single model pipeline, cached per model_id. Thread-safe."""
     if model_id in _model_cache:
         return _model_cache[model_id]
-    try:
-        from transformers import pipeline as hf_pipeline
-        import torch
-        device = 0 if torch.cuda.is_available() else -1
-        clf = hf_pipeline(
-            "text-classification",
-            model=model_id,
-            device=device,
-            truncation=True,
-            max_length=512,
-        )
-        _model_cache[model_id] = clf
-        print(f"[Stage3] Loaded comparison model: {model_id}")
-        return clf
-    except Exception as e:
-        print(f"[Stage3] Comparison model unavailable: {model_id} — {e}")
-        _model_cache[model_id] = None
-        return None
+    with _model_lock:
+        if model_id in _model_cache:  # double-check after lock
+            return _model_cache[model_id]
+        try:
+            from transformers import pipeline as hf_pipeline
+            import torch
+            device = 0 if torch.cuda.is_available() else -1
+            clf = hf_pipeline(
+                "text-classification",
+                model=model_id,
+                device=device,
+                truncation=True,
+                max_length=512,
+            )
+            _model_cache[model_id] = clf
+            print(f"[Stage3] Loaded comparison model: {model_id}")
+            return clf
+        except Exception as e:
+            print(f"[Stage3] Comparison model unavailable: {model_id} — {e}")
+            _model_cache[model_id] = None
+            return None
+
+
+def preload_all_models():
+    """Called at server startup to load all models into memory. Runs in background thread."""
+    print("[Stage3] Preloading primary model...")
+    _get_hf_pipeline()
+    print("[Stage3] Preloading comparison models...")
+    for meta in COMPARISON_MODELS:
+        _load_single_model(meta["id"])
+    print("[Stage3] All models ready.")
+
+
+def get_models_status() -> dict:
+    """Return current model loading status for the /api/status endpoint."""
+    primary_ready = "classifier" in _pipeline_cache and _pipeline_cache["classifier"] is not None
+    loaded = [m["id"] for m in COMPARISON_MODELS if _model_cache.get(m["id"]) is not None]
+    return {
+        "primary_ready": primary_ready,
+        "primary_model": _pipeline_cache.get("model_name", "loading"),
+        "comparison_loaded": len(loaded),
+        "comparison_total": len(COMPARISON_MODELS),
+        "models_ready": primary_ready,
+    }
 
 
 def _normalize_label(label: str, model_id: str) -> str:
@@ -384,7 +418,7 @@ def analyze_content(headline: str, content: str) -> Stage3Result:
             truncated = " ".join(text.split()[:400])
             result = clf(truncated)[0]
             label = result["label"].upper()
-            ml_confidence = result["score"]
+            ml_confidence = float(result["score"])  # cast numpy.float32 → Python float
 
             # Normalize label to FAKE/REAL
             # Different models use different label schemes:

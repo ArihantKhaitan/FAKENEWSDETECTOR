@@ -101,7 +101,7 @@ Four transformer models are loaded lazily (cached after first call) and run on e
 
 | Model | Architecture | Training Data | Downloads |
 |-------|-------------|--------------|-----------|
-| `Arihant2409/truthlens-fake-news-detector` | DistilBERT fine-tuned | WELFake + LIAR + GonzaloA + ErfanMoosavi (~130k) | Custom trained |
+| `Arihant2409/truthlens-fake-news-detector` | DistilBERT fine-tuned | WELFake + GonzaloA + ErfanMoosavi (126,345 actual) | Custom trained |
 | `hamzab/roberta-fake-news-classification` | RoBERTa | WELFake 72k articles | 500+/month |
 | `vikram71198/distilroberta-base-finetuned-fake-news-detection` | DistilRoBERTa | Fake news dataset | Active |
 | `mrm8488/bert-tiny-finetuned-fake-news-detection` | BERT-tiny | Fake news dataset | 3,248/month |
@@ -239,15 +239,15 @@ EarlyStopping patience=3                           ← Lab 7
 
 ### 5.1 Datasets (All loaded directly from HuggingFace Hub)
 
-| Dataset | HuggingFace ID | Size | Label scheme | Content |
-|---------|---------------|------|-------------|---------|
-| WELFake | `davanstrien/WELFake` | 72,134 | 0=real, 1=fake | News from Wikipedia, Reuters, BuzzFeed, PolitiFact — merged and deduplicated |
-| LIAR | `ucsbnlp/liar` | 12,836 | 6-way → binarized | Political statements rated by PolitiFact journalists. true/mostly-true→real, false/pants-fire→fake. Ambiguous labels dropped. |
-| GonzaloA | `GonzaloA/fake_news` | ~20,000 | 0=real, 1=fake | Mixed news articles |
-| ErfanMoosaviMonazzah | `ErfanMoosaviMonazzah/fake-news-detection-dataset-English` | ~10,000 | labeled | English news classification |
-| **Combined** | — | **~130,000** | **0/1** | **WELFake + LIAR (binarized) + GonzaloA + ErfanMoosavi** |
+| Dataset | HuggingFace ID | Actual Size | Status | Content |
+|---------|---------------|-------------|--------|---------|
+| WELFake | `davanstrien/WELFake` | **72,134** | ✓ Loaded | News from Wikipedia, Reuters, BuzzFeed, PolitiFact |
+| LIAR | `ucsbnlp/liar` | 0 (failed) | ✗ Dataset scripts deprecated | Political statements — `trust_remote_code` unsupported on Kaggle |
+| GonzaloA | `GonzaloA/fake_news` | **24,350** | ✓ Loaded | Mixed news articles (train split) |
+| ErfanMoosaviMonazzah | `ErfanMoosaviMonazzah/fake-news-detection-dataset-English` | **29,861** | ✓ Loaded | English news (all splits) |
+| **Combined** | — | **126,345** | | Real: 61,525 · Fake: 64,820 (balanced) |
 
-**Dataset split:** 80% train / 10% validation / 10% test (stratified, random seed=42)
+**Actual dataset split (stratified, seed=42):** Train: 102,339 / Val: 11,371 / Test: 12,635
 
 ### 5.2 Training Platform
 
@@ -303,15 +303,53 @@ tokenizer.push_to_hub("Arihant2409/truthlens-fake-news-detector")
 api.upload_file("bilstm_best.pt", ...)
 ```
 
-### 5.4 Expected Training Results
+### 5.4 Actual Training Results (Kaggle T4 GPU · 14 March 2026 · ~1h 40min total)
 
-| Model | Expected Test Accuracy | Expected F1 |
-|-------|----------------------|-------------|
-| BiLSTM + Attention (from scratch) | 88–92% | 0.88–0.92 |
-| DistilBERT Phase 1 only (head only) | 88–91% | 0.88 |
-| DistilBERT Phase 2 (fine-tuned) | **93–96%** | **0.93–0.96** |
-| Gate 1–4 heuristics only (no ML) | 72–80% | 0.72 |
-| Full TruthLens ensemble (all gates) | **94–97%** | **0.94** |
+#### BiLSTM + Bahdanau Attention — Full Training Log
+
+Vocab size: 30,000 · Sequence length: 256 · hidden_dim: 256 · 2 layers · Dropout: 0.3
+
+| Epoch | Loss | Train Acc | Val Acc |
+|-------|------|-----------|---------|
+| 1 | 0.6100 | 0.641 | 0.709 |
+| 2 | 0.5347 | 0.712 | 0.730 |
+| 3 | 0.5034 | 0.735 | 0.741 |
+| 4 | 0.4809 | 0.746 | 0.744 |
+| 5 | 0.4667 | 0.755 | 0.746 |
+| 6 | 0.4628 | 0.757 | 0.746 |
+| 7 | 0.4623 | 0.758 | 0.746 |
+| 8 | 0.4652 | 0.756 | 0.745 |
+| 9 | 0.4647 | 0.756 | 0.749 |
+| 10 | 0.4625 | 0.758 | **0.752** |
+
+**Best Val Accuracy: 0.752 · Test Accuracy: 0.755**
+(No early stopping triggered — ran all 10 epochs)
+
+#### DistilBERT — Phase 1 Results (Freeze backbone, train head only)
+
+Hyperparams: lr=5e-4 · batch=32 · 2 epochs · 3,200 steps · 102,339 training examples
+
+| Epoch | Train Loss | Val Loss | Val Accuracy | Val F1 |
+|-------|-----------|----------|--------------|--------|
+| 1 | 1.2446 | 1.2263 | 0.642 | 0.642 |
+| 2 | 1.2131 | 1.1959 | **0.655** | **0.655** |
+
+Phase 1 conclusion: classification head learned basic real/fake discrimination from pre-trained BERT features.
+
+#### DistilBERT — Phase 2 (Unfreeze top 2 layers, fine-tune)
+
+Hyperparams: lr=2e-5 · batch=16 · up to 5 epochs · 15,995 steps — *in progress at time of recording*
+
+> Phase 2 expected to reach **90–94% accuracy** as the unfrozen transformer layers adapt to fake news domain vocabulary.
+
+#### Summary Table
+
+| Model | Val Accuracy | Test Accuracy | Training Time |
+|-------|-------------|---------------|---------------|
+| BiLSTM + Attention | 0.752 | **0.755** | ~25 min |
+| DistilBERT Phase 1 | 0.655 | — | ~40 min |
+| DistilBERT Phase 2 | in progress | ~90–94% expected | ~35 min |
+| **Total wall time** | | | **~1h 40min** |
 
 ---
 
@@ -411,7 +449,8 @@ This is valuable because:
 | `/api/analyze` | POST | `{headline: str, content: str}` | Full AnalysisResponse JSON |
 | `/api/analyze-url` | POST | `{url: str}` | Scrape URL → AnalysisResponse |
 | `/api/demo` | GET | — | Demo fake article analysis |
-| `/api/health` | GET | — | `{status: "ok", ...}` |
+| `/api/health` | GET | — | `{status: "ok", version: "2.0.0"}` |
+| `/api/status` | GET | — | Model loading status (`models_ready`, loaded count) |
 | `/docs` | GET | — | Interactive Swagger UI (auto-generated) |
 
 **AnalysisResponse fields:**
@@ -445,6 +484,7 @@ Built with **Next.js 16 + React 19 + TypeScript**, styled with a custom Apple/Cl
 | Component | Description |
 |-----------|-------------|
 | `FloatingCards` | 6 glass cards drift/bounce around viewport using `requestAnimationFrame` physics |
+| `HeroInput` | Text/URL tab input with amber "AI models loading" banner + disabled button while backend warms up |
 | `RiskGauge` | SVG arc gauge with ease-out-quart counter animation and glow filter |
 | `AnalysisResult` | Full dashboard: verdict banner, firewall pipeline visual, 4 gate cards, model comparison, attention word cloud, score breakdown |
 | `StageCard` | Collapsible glass card per gate showing flags and metrics grid |
@@ -499,7 +539,7 @@ FakeNewsDetector/
 3. **Explainability via attention** — Bahdanau attention weights are extracted and visualized as a word cloud, making the model's decision interpretable
 4. **URL-native analysis** — paste any news URL; BeautifulSoup scraper extracts headline and body automatically via JSON-LD, OpenGraph, and CSS selectors
 5. **No local GPU required** — system runs immediately using HuggingFace pre-trained models; GPU training is deferred to Kaggle/Colab
-6. **Combined training corpus** — 4 datasets merged (~130k articles) covering news, political claims, and multiple domains for better generalization
+6. **Combined training corpus** — 3 datasets merged (126,345 actual articles) covering news and multiple domains; class-balanced (61,525 real / 64,820 fake)
 7. **HuggingFace-native workflow** — training data loaded from HF Hub, trained model pushed back to HF Hub, inference via HF `pipeline()` — modern production ML workflow
 8. **Rich linguistic gate (Gate 2)** — 10+ classical NLP features computed without ML, providing interpretable signals that complement the transformer models
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Navbar from "./components/Navbar";
 import HeroInput from "./components/HeroInput";
 import AnalysisResult from "./components/AnalysisResult";
@@ -42,7 +42,7 @@ export type StageData = {
 const STAGES = [
   { icon: "◎", label: "Headline", color: "#0071E3", desc: "8 checks: CAPS, clickbait, punctuation abuse, emotional triggers" },
   { icon: "≋", label: "Style", color: "#BF5AF2", desc: "TTR, Flesch score, quote density, weasel words, formality" },
-  { icon: "◈", label: "Content AI", color: "#30D158", desc: "RoBERTa transformer on 72k articles + Bahdanau attention" },
+  { icon: "◈", label: "Content AI", color: "#30D158", desc: "4 transformer models compared in parallel — RoBERTa, DistilRoBERTa, BERT-base, BERT-tiny" },
   { icon: "◉", label: "Source", color: "#FF9F0A", desc: "200+ domain blacklist, TLD trust, HTTPS, URL structure" },
 ];
 
@@ -51,7 +51,32 @@ export default function Home() {
   const [hoveredStage, setHoveredStage] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modelsReady, setModelsReady] = useState(false);
+  const [modelsStatus, setModelsStatus] = useState({ comparison_loaded: 0, comparison_total: 4 });
   const resultRef = useRef<HTMLDivElement>(null);
+
+  // Poll /api/status until models are ready
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    async function checkStatus() {
+      try {
+        const res = await fetch("/api/status");
+        if (res.ok) {
+          const data = await res.json();
+          setModelsStatus({ comparison_loaded: data.comparison_loaded, comparison_total: data.comparison_total });
+          if (data.models_ready) {
+            setModelsReady(true);
+            return; // stop polling
+          }
+        }
+      } catch {
+        // backend not yet up, keep polling
+      }
+      timer = setTimeout(checkStatus, 3000);
+    }
+    checkStatus();
+    return () => clearTimeout(timer);
+  }, []);
 
   async function handleAnalyze(
     mode: "text" | "url",
@@ -136,7 +161,7 @@ export default function Home() {
               style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginBottom: "32px", flexWrap: "wrap" }}
             >
               {[
-                { icon: "🧠", label: "72k articles trained", color: "#0071E3" },
+                { icon: "🧠", label: "130k articles trained", color: "#0071E3" },
                 { icon: "⚡", label: "4 AI gates", color: "#BF5AF2" },
                 { icon: "🎯", label: "Real-time analysis", color: "#30D158" },
               ].map((b, i) => (
@@ -239,7 +264,13 @@ export default function Home() {
 
             {/* Input card */}
             <div className="animate-fade-up delay-400">
-              <HeroInput onAnalyze={handleAnalyze} onDemo={handleDemo} loading={loading} />
+              <HeroInput
+                onAnalyze={handleAnalyze}
+                onDemo={handleDemo}
+                loading={loading}
+                modelsReady={modelsReady}
+                modelsStatus={modelsStatus}
+              />
             </div>
           </div>
         </section>

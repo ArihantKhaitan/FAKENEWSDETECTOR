@@ -8,9 +8,11 @@ interface Props {
   onAnalyze: (mode: Mode, data: { headline?: string; content?: string; url?: string }) => void;
   onDemo: () => void;
   loading: boolean;
+  modelsReady?: boolean;
+  modelsStatus?: { comparison_loaded: number; comparison_total: number };
 }
 
-export default function HeroInput({ onAnalyze, onDemo, loading }: Props) {
+export default function HeroInput({ onAnalyze, onDemo, loading, modelsReady = true, modelsStatus }: Props) {
   const [mode, setMode] = useState<Mode>("text");
   const [headline, setHeadline] = useState("");
   const [content, setContent] = useState("");
@@ -18,6 +20,7 @@ export default function HeroInput({ onAnalyze, onDemo, loading }: Props) {
 
   const canSubmit =
     !loading &&
+    modelsReady &&
     (mode === "url" ? url.trim() !== "" : headline.trim() !== "" || content.trim() !== "");
 
   function handleSubmit() {
@@ -31,6 +34,31 @@ export default function HeroInput({ onAnalyze, onDemo, loading }: Props) {
       className="glass gradient-border glass-shimmer"
       style={{ maxWidth: "760px", margin: "0 auto", borderRadius: "24px", padding: "8px" }}
     >
+      {/* Models warming-up banner */}
+      {!modelsReady && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: "10px",
+          padding: "10px 14px", marginBottom: "8px",
+          background: "rgba(255,159,10,0.07)", borderRadius: "16px",
+          border: "1px solid rgba(255,159,10,0.2)",
+        }}>
+          <svg viewBox="0 0 16 16" width="14" height="14" style={{ animation: "spin 1s linear infinite", flexShrink: 0 }}>
+            <circle cx="8" cy="8" r="6" fill="none" stroke="rgba(255,159,10,0.3)" strokeWidth="2" />
+            <path d="M8 2a6 6 0 016 6" stroke="#FF9F0A" strokeWidth="2" strokeLinecap="round" fill="none" />
+          </svg>
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: "12px", fontWeight: 600, color: "#8a5500" }}>
+              AI models loading
+            </span>
+            <span style={{ fontSize: "11px", color: "#98989D", marginLeft: "6px" }}>
+              {modelsStatus
+                ? `${modelsStatus.comparison_loaded}/${modelsStatus.comparison_total} models ready — first startup only, ~30s`
+                : "first startup only, ~30s"}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Tab switcher */}
       <div
         style={{
@@ -161,6 +189,14 @@ export default function HeroInput({ onAnalyze, onDemo, loading }: Props) {
                   <path d="M8 2a6 6 0 016 6" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" />
                 </svg>
                 Analyzing...
+              </>
+            ) : !modelsReady ? (
+              <>
+                <svg viewBox="0 0 16 16" width="15" height="15" style={{ animation: "spin 1s linear infinite" }}>
+                  <circle cx="8" cy="8" r="6" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" />
+                  <path d="M8 2a6 6 0 016 6" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" />
+                </svg>
+                Loading models...
               </>
             ) : (
               <>

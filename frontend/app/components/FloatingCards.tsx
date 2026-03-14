@@ -6,7 +6,7 @@ const CARDS = [
   {
     icon: "🧠",
     title: "BiLSTM + Attention",
-    body: "Bidirectional LSTM with Bahdanau attention trained on 72k articles",
+    body: "Bidirectional LSTM with Bahdanau attention trained on 130k articles",
     color: "#BF5AF2",
     w: 210,
   },
@@ -27,7 +27,7 @@ const CARDS = [
   {
     icon: "🤖",
     title: "Gate 3: Transformer",
-    body: "RoBERTa fine-tuned on WELFake — 72k real & fake articles",
+    body: "4 models compared — RoBERTa, DistilRoBERTa, BERT-base, BERT-tiny",
     color: "#30D158",
     w: 220,
   },
@@ -40,8 +40,8 @@ const CARDS = [
   },
   {
     icon: "⚡",
-    title: "< 200ms",
-    body: "Average analysis time across all 4 gates simultaneously",
+    title: "1–5s analysis",
+    body: "4 transformer models run in parallel across all gates",
     color: "#FF3B30",
     w: 195,
   },
