@@ -38,8 +38,8 @@ export default function Navbar() {
       {/* Nav */}
       <nav style={{ display: "flex", alignItems: "center", gap: "32px" }}>
         {[
-          { label: "How it works", href: "#how-it-works" },
-          { label: "Datasets", href: "https://github.com/ArihantKhaitan/FAKENEWSDETECTOR/blob/main/training/DATASETS.md" },
+          { label: "How it works", href: "/how-it-works" },
+          { label: "Datasets", href: "https://github.com/ArihantKhaitan/FAKENEWSDETECTOR/blob/master/training/DATASETS.md" },
           { label: "API Docs", href: "http://localhost:8000/docs" },
         ].map(({ label, href }) => (
           <a

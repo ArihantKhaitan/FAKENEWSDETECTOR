@@ -5,6 +5,7 @@ import Navbar from "./components/Navbar";
 import HeroInput from "./components/HeroInput";
 import AnalysisResult from "./components/AnalysisResult";
 import LoadingScreen from "./components/LoadingScreen";
+import FloatingCards from "./components/FloatingCards";
 
 export type AnalysisData = {
   risk_score: number;
@@ -38,8 +39,16 @@ export type StageData = {
   details: Record<string, unknown>;
 };
 
+const STAGES = [
+  { icon: "◎", label: "Headline", color: "#0071E3", desc: "8 checks: CAPS, clickbait, punctuation abuse, emotional triggers" },
+  { icon: "≋", label: "Style", color: "#BF5AF2", desc: "TTR, Flesch score, quote density, weasel words, formality" },
+  { icon: "◈", label: "Content AI", color: "#30D158", desc: "RoBERTa transformer on 72k articles + Bahdanau attention" },
+  { icon: "◉", label: "Source", color: "#FF9F0A", desc: "200+ domain blacklist, TLD trust, HTTPS, URL structure" },
+];
+
 export default function Home() {
   const [result, setResult] = useState<AnalysisData | null>(null);
+  const [hoveredStage, setHoveredStage] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -111,6 +120,9 @@ export default function Home() {
         <div className="orb orb-4" />
       </div>
 
+      {/* Floating info cards */}
+      <FloatingCards />
+
       <div style={{ position: "relative", zIndex: 1, minHeight: "100vh" }}>
         <Navbar />
 
@@ -118,26 +130,25 @@ export default function Home() {
         <section style={{ paddingTop: "110px", paddingBottom: "80px", textAlign: "center" }}>
           <div style={{ maxWidth: "820px", margin: "0 auto", padding: "0 24px" }}>
 
-            {/* Pill */}
+            {/* Stat badges */}
             <div
-              className="animate-fade-in glass-subtle no-select"
-              style={{
-                display: "inline-flex", alignItems: "center", gap: "8px",
-                padding: "7px 16px", borderRadius: "980px", marginBottom: "32px",
-              }}
+              className="animate-fade-in no-select"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginBottom: "32px", flexWrap: "wrap" }}
             >
-              <span style={{
-                width: "6px", height: "6px", borderRadius: "50%",
-                background: "linear-gradient(135deg, #0071E3, #5AC8FA)",
-                display: "inline-block", animation: "pulse-glow 2s ease-in-out infinite",
-              }} />
-              <span style={{ fontSize: "11px", fontWeight: 600, color: "#0071E3", letterSpacing: "0.07em", textTransform: "uppercase" }}>
-                AI-Powered
-              </span>
-              <span style={{ width: "1px", height: "12px", background: "rgba(0,0,0,0.1)", display: "inline-block" }} />
-              <span style={{ fontSize: "11px", color: "#6E6E73", fontWeight: 500 }}>
-                4-Stage Firewall Detection
-              </span>
+              {[
+                { icon: "🧠", label: "72k articles trained", color: "#0071E3" },
+                { icon: "⚡", label: "4 AI gates", color: "#BF5AF2" },
+                { icon: "🎯", label: "Real-time analysis", color: "#30D158" },
+              ].map((b, i) => (
+                <div
+                  key={i}
+                  className="glass-subtle"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 14px", borderRadius: "980px" }}
+                >
+                  <span style={{ fontSize: "12px" }}>{b.icon}</span>
+                  <span style={{ fontSize: "11px", fontWeight: 600, color: b.color, letterSpacing: "0.03em" }}>{b.label}</span>
+                </div>
+              ))}
             </div>
 
             {/* Headline */}
@@ -170,35 +181,57 @@ export default function Home() {
               <strong style={{ color: "#3D3D3F", fontWeight: 500 }}>source credibility</strong> — simultaneously.
             </p>
 
-            {/* Stage flow */}
+            {/* Interactive stage flow */}
             <div
               className="animate-fade-up delay-300"
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                gap: "8px", marginBottom: "48px", flexWrap: "wrap",
-              }}
+              style={{ display: "flex", alignItems: "flex-start", justifyContent: "center", gap: "6px", marginBottom: "48px", flexWrap: "wrap" }}
             >
-              {[
-                { icon: "◎", label: "Headline", color: "#0071E3" },
-                { icon: "≋", label: "Style", color: "#BF5AF2" },
-                { icon: "◈", label: "Content AI", color: "#30D158" },
-                { icon: "◉", label: "Source", color: "#FF9F0A" },
-              ].map((s, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <div
-                    className="glass-subtle"
-                    style={{
-                      display: "flex", alignItems: "center", gap: "5px",
-                      padding: "6px 12px", borderRadius: "980px",
-                    }}
-                  >
-                    <span style={{ fontSize: "13px", color: s.color }}>{s.icon}</span>
-                    <span style={{ fontSize: "12px", color: "#3D3D3F", fontWeight: 500 }}>{s.label}</span>
+              {STAGES.map((s, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
+                    <button
+                      onMouseEnter={() => setHoveredStage(i)}
+                      onMouseLeave={() => setHoveredStage(null)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "6px",
+                        padding: hoveredStage === i ? "8px 16px" : "7px 13px",
+                        borderRadius: "980px",
+                        background: hoveredStage === i ? `${s.color}15` : "rgba(255,255,255,0.45)",
+                        backdropFilter: "blur(20px)",
+                        WebkitBackdropFilter: "blur(20px)",
+                        border: hoveredStage === i ? `1.5px solid ${s.color}50` : "1px solid rgba(255,255,255,0.6)",
+                        boxShadow: hoveredStage === i
+                          ? `0 4px 20px ${s.color}25, inset 0 1px 0 rgba(255,255,255,0.8)`
+                          : "0 4px 20px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.8)",
+                        cursor: "pointer", fontFamily: "inherit",
+                        transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
+                        transform: hoveredStage === i ? "translateY(-2px) scale(1.04)" : "translateY(0) scale(1)",
+                      }}
+                    >
+                      <span style={{ fontSize: "14px", color: s.color, transition: "transform 0.2s", transform: hoveredStage === i ? "rotate(15deg)" : "rotate(0)" }}>{s.icon}</span>
+                      <span style={{ fontSize: "12px", color: hoveredStage === i ? s.color : "#3D3D3F", fontWeight: hoveredStage === i ? 600 : 500 }}>{s.label}</span>
+                    </button>
+                    {hoveredStage === i && (
+                      <div style={{
+                        position: "absolute", marginTop: "40px",
+                        background: "rgba(255,255,255,0.92)",
+                        backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+                        border: `1px solid ${s.color}30`,
+                        borderRadius: "12px", padding: "10px 14px",
+                        maxWidth: "200px", zIndex: 10,
+                        boxShadow: `0 8px 30px rgba(0,0,0,0.1), 0 0 0 1px ${s.color}15`,
+                        animation: "fadeUp 0.2s ease forwards",
+                      }}>
+                        <p style={{ fontSize: "11.5px", color: "#3D3D3F", lineHeight: 1.5, margin: 0, textAlign: "left" }}>{s.desc}</p>
+                      </div>
+                    )}
                   </div>
                   {i < 3 && (
-                    <svg width="16" height="10" viewBox="0 0 16 10" fill="none">
-                      <path d="M1 5h12M9 1l4 4-4 4" stroke="rgba(0,0,0,0.2)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+                    <div style={{ display: "flex", alignItems: "center", paddingTop: "10px" }}>
+                      <svg width="18" height="10" viewBox="0 0 18 10" fill="none">
+                        <path d="M1 5h14M11 1l4 4-4 4" stroke={hoveredStage === i || hoveredStage === i + 1 ? STAGES[i].color : "rgba(0,0,0,0.18)"} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "stroke 0.3s" }} />
+                      </svg>
+                    </div>
                   )}
                 </div>
               ))}
