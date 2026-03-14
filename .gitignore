@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+env/
+.venv/
+*.egg
+
+# Models & checkpoints
+*.pt
+*.pth
+*.bin
+*.safetensors
+checkpoints/
+model_cache/
+
+# Next.js / Node
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+
+# Backend env
+backend/.env
+backend/__pycache__/
+backend/pipeline/__pycache__/
+backend/utils/__pycache__/
+
+# Training outputs
+training/outputs/
+training/__pycache__/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
