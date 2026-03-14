@@ -1,273 +1,543 @@
 # Project Synopsis
-## Fake News Detection Using an Attention-Based Deep Learning Model
+## TruthLens — Fake News Detection Using an Attention-Based Deep Learning Model
 
 **Course**: Deep Learning Lab
-**Architecture**: Multi-Stage Firewall Pipeline + BiLSTM Attention + BERT Transfer Learning
+**Project Name**: TruthLens
+**GitHub**: https://github.com/ArihantKhaitan/FAKENEWSDETECTOR
+**HuggingFace**: https://huggingface.co/Arihant2409/truthlens-fake-news-detector
 
 ---
 
 ## 1. Introduction
 
-The proliferation of misinformation on digital news platforms poses a significant threat to public discourse and democratic processes. Traditional fake news detection approaches rely on single-model classification, which is brittle and easily fooled. This project presents a **multi-stage, multi-signal detection system** — analogous to a firewall — where an article passes through four independent analytical gates before a final ensemble verdict is issued.
+The rapid spread of misinformation on digital news platforms poses a critical threat to public discourse and democratic processes. Traditional single-model fake news classifiers are brittle — they can be fooled by writing style changes or domain spoofing. This project presents **TruthLens**, a multi-stage, multi-signal detection system modeled on the concept of a security firewall.
 
-The system combines classical linguistic analysis with modern deep learning (BiLSTM + Attention) and transfer learning (BERT fine-tuning) to analyze fake news across multiple dimensions simultaneously: **headline patterns, writing style, semantic content, and source credibility**.
+Every article passes through **four independent analysis gates** — Headline Analysis, Writing Style, Deep Learning Content Analysis, and Source Credibility — before a weighted ensemble produces a final verdict. Gate 3 uniquely runs **four different transformer models simultaneously** and compares their predictions, giving a more robust and interpretable result than any single model could.
+
+The system is deployed as a full-stack application: a **FastAPI Python backend** running the AI pipeline and a **Next.js 16 + React 19 premium web dashboard** for interaction. Training is performed on **Kaggle (free T4 GPU)** using datasets pulled directly from **HuggingFace Hub**, with the resulting model pushed back to HuggingFace for deployment.
 
 ---
 
 ## 2. Problem Statement
 
-Given a news article (headline + body text, optionally with source URL), determine:
-- Whether it is **FAKE**, **SUSPICIOUS**, or **REAL**
-- Which specific signals contributed to the classification
-- Which words/phrases the model attended to most
+Given a news article (headline + body text, and optionally a source URL):
+- Classify it as **REAL**, **SUSPICIOUS**, or **FAKE**
+- Explain **which signals** triggered the classification at each gate
+- Show **which words** the attention model focused on
+- Compare predictions across **multiple transformer models** to show consensus or disagreement
 
 ---
 
 ## 3. System Architecture
 
-### 3.1 Multi-Stage Firewall Pipeline
-
-The article passes through four sequential analysis gates. Each gate is independent and produces its own suspicion score (0–100). A weighted ensemble combines them into a final risk score.
+### 3.1 Four-Gate Firewall Pipeline
 
 ```
-┌─────────────┐
-│  Input      │  (headline + body text + optional URL)
-└──────┬──────┘
-       │
-       ▼
-┌──────────────────────────────────────────────────────────────┐
-│  GATE 1: Headline Analyzer                                   │
-│  • ALL CAPS ratio    • Clickbait pattern matching (regex)    │
-│  • Punctuation abuse • Sensationalist word list              │
-│  • Absolutist language • Emotional trigger words             │
-│  • Question-based framing • Word count anomalies             │
-└──────┬───────────────────────────────────────────────────────┘
-       │  Score: 0–100
-       ▼
-┌──────────────────────────────────────────────────────────────┐
-│  GATE 2: Writing Style & Linguistic Analyzer                 │
-│  • Vocabulary richness (Type-Token Ratio)                    │
-│  • Sentence length distribution                              │
-│  • Flesch Reading Ease score                                 │
-│  • Quote density (real journalism attributes sources)        │
-│  • Weasel words ("sources say", "reportedly")                │
-│  • Mid-sentence capitalization anomalies                     │
-│  • Informal/slang word ratio                                 │
-│  • Phrase repetition (propaganda technique detector)         │
-│  • First-person ratio (opinion vs. reporting)                │
-└──────┬───────────────────────────────────────────────────────┘
-       │  Score: 0–100
-       ▼
-┌──────────────────────────────────────────────────────────────┐
-│  GATE 3: Deep Learning Content Analyzer                      │
-│  • Pre-trained RoBERTa/BERT (HuggingFace Hub, no training)  │
-│  • Sentiment polarity analysis                               │
-│  • Named entity density (vague vs. specific reporting)       │
-│  • Headline–body consistency (overlap metric)                │
-│  • Attention weight extraction (word importance)             │
-│  • Heuristic fallback (no GPU required)                      │
-└──────┬───────────────────────────────────────────────────────┘
-       │  Score: 0–100
-       ▼
-┌──────────────────────────────────────────────────────────────┐
-│  GATE 4: Source & Domain Credibility Analyzer                │
-│  • 200+ known unreliable domain blacklist                    │
-│  • Known credible domain whitelist (Reuters, BBC, AP, etc.)  │
-│  • URL structure: hyphens, suspicious TLDs (.info, .tk)      │
-│  • Credibility-claiming keywords in domain name              │
-│  • HTTPS verification                                        │
-│  • Author byline detection                                   │
-│  • Publication date presence                                 │
-│  • External citation density                                 │
-└──────┬───────────────────────────────────────────────────────┘
-       │  Score: 0–100
-       ▼
-┌──────────────────────────────────────────────────────────────┐
-│  ENSEMBLE VERDICT ENGINE                                     │
-│  Weighted score = 15% × Gate1 + 25% × Gate2 +               │
-│                   40% × Gate3 + 20% × Gate4                  │
-│                                                              │
-│  0–30  → REAL         56–100 → FAKE                         │
-│  31–55 → SUSPICIOUS                                          │
-└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  INPUT: Headline + Article Body + (optional URL)         │
+└──────────────────┬───────────────────────────────────────┘
+                   │ (if URL: scrape with BeautifulSoup)
+          ┌────────▼────────┐
+          │  URL SCRAPER    │  JSON-LD, OpenGraph, CSS selectors
+          └────────┬────────┘
+                   │
+    ┌──────────────┴──────────────────────────────┐
+    │         RUNS IN PARALLEL                    │
+    ▼              ▼              ▼               ▼
+┌────────┐  ┌──────────┐  ┌───────────┐  ┌──────────┐
+│ GATE 1 │  │  GATE 2  │  │  GATE 3   │  │  GATE 4  │
+│Headline│  │  Style   │  │Content AI │  │  Source  │
+│  15%   │  │   25%    │  │   40%     │  │   20%    │
+└────┬───┘  └─────┬────┘  └─────┬─────┘  └────┬─────┘
+     │            │             │              │
+     └────────────┴─────────────┴──────────────┘
+                          │
+                 ┌────────▼────────┐
+                 │   ENSEMBLE      │
+                 │  Weighted sum   │
+                 │  0–39  → REAL   │
+                 │  40–65 → SUSP.  │
+                 │  66–100→ FAKE   │
+                 └─────────────────┘
 ```
 
-### 3.2 Deep Learning Model (Gate 3)
+### 3.2 Gate 1 — Headline Analysis
 
-**BiLSTM + Bahdanau Attention** (from-scratch, trained on combined datasets):
+Analyzes the title text only using rule-based NLP checks:
 
-```
-Input tokens (headline + content)
-    ↓  Embedding Layer (nn.Embedding, 300-dim)
-    ↓  Dropout (p=0.5)                              [Lab 7: Regularization]
-    ↓  Bidirectional LSTM, 2 layers, hidden=256     [Lab 8+9: BiLSTM]
-       → output: (batch, seq_len, 512)
-    ↓  Bahdanau Additive Attention                  [Core Contribution]
-       e_t = v^T · tanh(W · h_t)
-       α_t = softmax(e_t)
-       context = Σ α_t · h_t
-    ↓  Dropout (p=0.5)                              [Lab 7]
-    ↓  Linear(512 → 128) → ReLU → Dropout → Linear(128 → 2)  [Lab 3]
-    ↓  CrossEntropyLoss → loss.backward()           [Lab 2: Autograd]
-```
+| Check | Description |
+|-------|-------------|
+| ALL-CAPS ratio | Excessive shouting — legitimate news rarely exceeds 10% caps |
+| Clickbait detection | 40+ regex patterns: "SHOCKING", "You won't believe", "They don't want you to know" |
+| Punctuation abuse | Multiple `!!` or `???` patterns = sensationalism |
+| Absolutist language | Words like "always", "never", "every single" in factual news context |
+| Emotional triggers | Curated wordlist of fear/outrage vocabulary |
+| Word count anomaly | Under 4 or over 22 words are statistically atypical |
+| Spacing anomaly | Unusual whitespace patterns sometimes indicate copy-pasting |
 
-**BERT Fine-Tuning** (Transfer Learning comparison model):
+### 3.3 Gate 2 — Writing Style & Linguistic Analysis
 
-```
-Pre-trained BERT (bert-base-uncased, 110M params)   [Lab 6: Transfer Learning]
-    Phase 1: Freeze all BERT layers, train head only (epochs 1–2)
-    Phase 2: Unfreeze top 4 transformer blocks (epochs 3+, lr=2e-5)
-    ↓  [CLS] pooled output (768-dim)
-    ↓  Dropout → Linear(768→256) → ReLU → Dropout → Linear(256→2)
+Analyzes the body text using 10+ classical NLP features:
+
+| Feature | Description |
+|---------|-------------|
+| Type-Token Ratio (TTR) | Vocabulary richness — fake news often repeats the same words |
+| Flesch Reading Ease | Extreme simplicity (<30) or complexity (>90) signals poor journalism |
+| Sentence length variance | High variance = natural writing; uniformly short = automated |
+| Quote density | Real journalism attributes statements; no quotes = red flag |
+| Weasel word ratio | "reportedly", "sources say", "allegedly" without attribution |
+| Mid-sentence capitalization | Unusual caps mid-sentence signal copy-pasted or altered text |
+| Informal/slang word ratio | "gonna", "wanna", "kinda" are out of place in news |
+| First-person ratio | Opinion framed as news inflates I/we/my frequency |
+| Phrase repetition score | Propaganda repeats key phrases verbatim |
+
+### 3.4 Gate 3 — Deep Learning Content Analysis (Core Contribution)
+
+This is the primary ML/DL gate. It does two things:
+
+**A. Multi-Model Inference (all models run, results compared in UI):**
+
+Four transformer models are loaded lazily (cached after first call) and run on every article:
+
+| Model | Architecture | Training Data | Downloads |
+|-------|-------------|--------------|-----------|
+| `Arihant2409/truthlens-fake-news-detector` | DistilBERT fine-tuned | WELFake + LIAR + GonzaloA + ErfanMoosavi (~130k) | Custom trained |
+| `hamzab/roberta-fake-news-classification` | RoBERTa | WELFake 72k articles | 500+/month |
+| `vikram71198/distilroberta-base-finetuned-fake-news-detection` | DistilRoBERTa | Fake news dataset | Active |
+| `mrm8488/bert-tiny-finetuned-fake-news-detection` | BERT-tiny | Fake news dataset | 3,248/month |
+
+Results are aggregated and shown in a "Model Comparison" panel — showing each model's verdict, confidence %, and training data. A "consensus badge" indicates whether all models agree.
+
+**B. Supplementary NLP features:**
+
+| Feature | Description |
+|---------|-------------|
+| Sentiment polarity | Extreme negative sentiment in factual news is anomalous |
+| Named entity density | Low NE density (no specific names/places/dates) = vague/fabricated |
+| Headline-body consistency | Word-overlap between title and body — mismatch is a red flag |
+| Attention word extraction | TF-IDF + fake-indicator bonus to extract suspicious words |
+
+### 3.5 Gate 4 — Source & Domain Credibility
+
+Analyzes the URL/domain and article metadata:
+
+| Check | Description |
+|-------|-------------|
+| Domain blacklist | 200+ known unreliable/satire/conspiracy sites flagged |
+| Domain whitelist | 50+ trusted outlets (Reuters, AP, BBC, NYT, etc.) give score bonus |
+| TLD trust scoring | `.gov`/`.edu` > `.com` > `.org` > `.info`/`.biz` > `.xyz`/`.tk` |
+| HTTPS verification | Legitimate news sites overwhelmingly use HTTPS |
+| URL structure | Excessive hyphens, long paths, numeric IDs signal content farms |
+| Subdomain abuse | `news.random-domain.com` patterns mimicking real outlets |
+| Author byline | Missing byline is a journalistic red flag |
+| Publication date | Articles with no date are often undated for a reason |
+| External link density | Real journalism cites other sources |
+
+### 3.6 Ensemble Verdict Engine
+
+```python
+risk_score = (
+    0.15 * gate1_score +
+    0.25 * gate2_score +
+    0.40 * gate3_score +   # ML model gets highest weight
+    0.20 * gate4_score
+)
+
+verdict = (
+    "REAL"       if risk_score < 40  else
+    "SUSPICIOUS" if risk_score < 66  else
+    "FAKE"
+)
 ```
 
 ---
 
-## 4. Lab Manual Concept Integration
+## 4. Deep Learning Model Architecture
 
-| Lab | Concept | Exact Usage in Project |
-|-----|---------|------------------------|
-| **Lab 2** | Autograd & Computational Graphs | `loss.backward()` in training loop; attention score gradients flow through backprop automatically |
-| **Lab 3** | Linear Layers, ReLU, activations | Classifier head: `nn.Linear(512,128) → ReLU → Linear(128,2)` |
-| **Lab 5** | CNNs (feature extraction) | Conceptual parallel: attention over LSTM states vs. CNN pooling over feature maps |
-| **Lab 6** | Transfer Learning | BERT: freeze pre-trained weights → add custom head → Phase 2 unfreeze top layers (identical strategy to AlexNet/ResNet fine-tuning) |
-| **Lab 7** | Regularization | Dropout (p=0.5) in 3 locations; `weight_decay=1e-4` in Adam (L2); gradient clipping (`max_norm=1.0`); `EarlyStopping` class with patience=5 |
-| **Lab 8** | RNN / LSTM | `nn.LSTM(input_size, hidden, layers, batch_first=True)` as the text encoder |
-| **Lab 9** | Bidirectional RNN | `bidirectional=True` → hidden states concatenated: h = [h_forward; h_backward] |
-| **Custom** | Attention Mechanism | Bahdanau (additive) attention over all BiLSTM hidden states; weights visualized in UI |
+### 4.1 BiLSTM + Bahdanau Attention (Trained from Scratch)
+
+This model demonstrates Labs 2, 3, 7, 8, 9, and the custom attention mechanism:
+
+```
+Input: tokenized article text (max 256 tokens)
+    │
+    ▼
+nn.Embedding(vocab_size=30000, embed_dim=128)           ← word vectors
+    │
+    ▼
+nn.Dropout(p=0.3)                                       ← Lab 7: Regularization
+    │
+    ▼
+nn.LSTM(                                                ← Lab 8: LSTM encoder
+    input_size=128,
+    hidden_size=256,
+    num_layers=2,
+    bidirectional=True,                                 ← Lab 9: BiLSTM
+    batch_first=True,
+    dropout=0.3
+)
+Output shape: (batch, seq_len, 512)  [256 forward + 256 backward]
+    │
+    ▼
+BahdanauAttention:                                      ← Custom: Attention
+    score(h_t) = v^T · tanh(W_a · h_t)
+    α_t = softmax(score)
+    context = Σ α_t · h_t
+Output shape: (batch, 512)
+    │
+    ▼
+nn.Dropout(p=0.3)                                       ← Lab 7
+    │
+    ▼
+nn.Linear(512 → 256) → nn.ReLU()                        ← Lab 3: Classifier head
+    │
+    ▼
+nn.Dropout(p=0.3)                                       ← Lab 7
+    │
+    ▼
+nn.Linear(256 → 2)                                      ← Lab 3
+    │
+    ▼
+CrossEntropyLoss → loss.backward()                      ← Lab 2: Autograd
+```
+
+### 4.2 DistilBERT Two-Phase Transfer Learning (Fine-Tuned)
+
+This model demonstrates Lab 6 (Transfer Learning):
+
+```
+Pre-trained DistilBERT (distilbert-base-uncased, 66M parameters)
+6 transformer layers, 768-dim hidden states
+
+PHASE 1 (Epochs 1–2):
+    ┌──────────────────────────────────────────────┐
+    │ Transformer layers 0–5: FROZEN (no gradients)│  ← Lab 6: freeze backbone
+    └──────────────────────────────────────────────┘
+    │
+    ▼ [CLS] token pooled output (768-dim)
+    │
+    ▼
+nn.Linear(768 → 2)  ← only this trains, lr=5e-4
+
+PHASE 2 (Epochs 3–7, early stopping):
+    ┌────────────────────────────────────────────┐
+    │ Layers 0–3: still FROZEN                   │
+    │ Layers 4–5: UNFROZEN (top 2 layers)        │  ← Lab 6: unfreeze gradually
+    └────────────────────────────────────────────┘
+    │
+    ▼
+Fine-tune at lr=2e-5 (10× lower than Phase 1)
+weight_decay=0.01 (L2 regularization)              ← Lab 7
+EarlyStopping patience=3                           ← Lab 7
+```
+
+**Why two phases?** Phase 1 trains the classification head to map BERT's generic features to fake/real. Phase 2 then adapts the top transformer layers to our specific domain. Training all layers from the start would destroy the pre-trained features (catastrophic forgetting).
 
 ---
 
-## 5. Datasets Used
+## 5. Training Workflow
 
-| Dataset | Size | Source |
-|---------|------|--------|
-| WELFake | 72,134 articles | Zenodo |
-| LIAR | 12,836 statements | ACL/Stanford |
-| Kaggle Fake+Real (McIntire) | 44,898 articles | Kaggle |
-| ISOT Fake News | 23,502 articles | University of Victoria |
-| FakeNewsNet (PolitiFact + GossipCop) | ~23,000 | GitHub |
-| COVID-19 Fake News | 10,700 claims | GitHub |
-| **Combined training corpus** | **~150,000** | All above |
+### 5.1 Datasets (All loaded directly from HuggingFace Hub)
+
+| Dataset | HuggingFace ID | Size | Label scheme | Content |
+|---------|---------------|------|-------------|---------|
+| WELFake | `davanstrien/WELFake` | 72,134 | 0=real, 1=fake | News from Wikipedia, Reuters, BuzzFeed, PolitiFact — merged and deduplicated |
+| LIAR | `ucsbnlp/liar` | 12,836 | 6-way → binarized | Political statements rated by PolitiFact journalists. true/mostly-true→real, false/pants-fire→fake. Ambiguous labels dropped. |
+| GonzaloA | `GonzaloA/fake_news` | ~20,000 | 0=real, 1=fake | Mixed news articles |
+| ErfanMoosaviMonazzah | `ErfanMoosaviMonazzah/fake-news-detection-dataset-English` | ~10,000 | labeled | English news classification |
+| **Combined** | — | **~130,000** | **0/1** | **WELFake + LIAR (binarized) + GonzaloA + ErfanMoosavi** |
+
+**Dataset split:** 80% train / 10% validation / 10% test (stratified, random seed=42)
+
+### 5.2 Training Platform
+
+**Kaggle** — free T4 GPU (up to 30 hours/week per account)
+- GPU: NVIDIA T4, 15GB VRAM
+- RAM: 30GB
+- Disk: 57.6GB
+- Script: `training/train_kaggle.py`
+
+**Google Colab** (alternative) — free T4 or T4 GPU
+- Script: `training/train_colab.py`
+
+### 5.3 Training Steps (as executed in train_kaggle.py)
+
+**Step 1: Load and merge datasets**
+```python
+from datasets import load_dataset
+welfake = load_dataset("davanstrien/WELFake", split="train")
+liar    = load_dataset("ucsbnlp/liar",        split="train")
+# ... merge, binarize LIAR, clean, shuffle
+```
+
+**Step 2: Train BiLSTM + Attention from scratch**
+- Build word vocabulary (30k tokens, min_freq=2) from training corpus
+- Train for up to 10 epochs with EarlyStopping (patience=5)
+- Save best checkpoint as `bilstm_best.pt`
+- Optimizer: AdamW (lr=3e-4, weight_decay=0.01)
+- Scheduler: CosineAnnealingLR
+
+**Step 3: Tokenize with DistilBERT tokenizer**
+```python
+tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+dataset = dataset.map(lambda b: tokenizer(b["text"], truncation=True, max_length=512), batched=True)
+```
+
+**Step 4: Fine-tune DistilBERT (Phase 1)**
+- Freeze all 6 transformer layers
+- Train classification head for 2 epochs
+- lr=5e-4, batch_size=32
+
+**Step 5: Fine-tune DistilBERT (Phase 2)**
+- Unfreeze top 2 transformer layers (layers 4 and 5)
+- Train for up to 5 epochs with EarlyStopping (patience=3)
+- lr=2e-5, batch_size=16
+
+**Step 6: Evaluate on test set**
+- Report accuracy and F1 score
+
+**Step 7: Push to HuggingFace Hub**
+```python
+bert_model.push_to_hub("Arihant2409/truthlens-fake-news-detector")
+tokenizer.push_to_hub("Arihant2409/truthlens-fake-news-detector")
+api.upload_file("bilstm_best.pt", ...)
+```
+
+### 5.4 Expected Training Results
+
+| Model | Expected Test Accuracy | Expected F1 |
+|-------|----------------------|-------------|
+| BiLSTM + Attention (from scratch) | 88–92% | 0.88–0.92 |
+| DistilBERT Phase 1 only (head only) | 88–91% | 0.88 |
+| DistilBERT Phase 2 (fine-tuned) | **93–96%** | **0.93–0.96** |
+| Gate 1–4 heuristics only (no ML) | 72–80% | 0.72 |
+| Full TruthLens ensemble (all gates) | **94–97%** | **0.94** |
 
 ---
 
-## 6. Regularization Techniques (Lab 7)
+## 6. Lab Manual Concept Integration
 
-| Technique | Where Applied | Effect |
-|-----------|--------------|--------|
-| **Dropout** (p=0.5) | After embedding, between LSTM layers, in classifier | Prevents neuron co-adaptation |
-| **L2 Weight Decay** | `weight_decay=1e-4` in Adam optimizer | Penalizes large weights |
-| **Gradient Clipping** | `max_norm=1.0` on all parameters | Prevents exploding gradients in RNN |
-| **Early Stopping** | Patience=5 epochs, monitors val_loss | Stops training before overfitting |
-| **Learning Rate Scheduling** | `ReduceLROnPlateau(factor=0.5)` | Reduces LR when val_loss plateaus |
-
----
-
-## 7. Training Strategy (Cloud — Google Colab / Kaggle)
-
-Training is performed on free cloud GPU (NVIDIA T4 on Colab) to avoid local compute constraints:
-
-1. **Upload `training/train_colab.py`** to Google Colab (Runtime → T4 GPU)
-2. Download WELFake dataset (`wget` from Zenodo)
-3. **Phase 1** (Epochs 1–2): BERT frozen, only classifier head trains (`lr=2e-4`)
-4. **Phase 2** (Epochs 3+): Top 4 BERT layers unfrozen, fine-tune (`lr=2e-5`)
-5. Best checkpoint pushed to **HuggingFace Hub** (`model.push_to_hub()`)
-6. Backend loads model from HF Hub: `pipeline("text-classification", model="username/repo")`
-
-For **immediate use without training**, the system loads pre-trained fake news models directly from HuggingFace Hub (`hamzab/roberta-fake-news-classification`).
+| Lab | Concept | Exact usage in TruthLens |
+|-----|---------|--------------------------|
+| **Lab 2** | Autograd & Computational Graphs | `loss.backward()` in BiLSTM training loop. Attention weight gradients flow back through softmax and the tanh scoring function automatically via autograd. No manual gradient computation needed. |
+| **Lab 3** | Linear Layers & Activation Functions | Classifier head: `nn.Linear(512→256) → nn.ReLU() → nn.Dropout(0.3) → nn.Linear(256→2)`. Also the DistilBERT classification head: `Linear(768→2)`. |
+| **Lab 6** | Transfer Learning | DistilBERT fine-tuning with two-phase strategy: Phase 1 freezes the entire pre-trained backbone and trains only the new classification head; Phase 2 unfreezes the top 2 transformer layers for domain adaptation. Identical strategy to fine-tuning ImageNet-pretrained ResNet for a new task. |
+| **Lab 7** | Regularization | **Dropout(0.3)** applied after embedding, between LSTM layers, and in classifier. **weight_decay=0.01** in AdamW optimizer (L2 penalty). **Gradient clipping** (max_norm=1.0) prevents exploding gradients in RNN. **EarlyStopping** monitors validation accuracy (patience=5 for BiLSTM, patience=3 for BERT). **CosineAnnealingLR** scheduler. |
+| **Lab 8** | LSTM / RNN | `nn.LSTM(input_size=128, hidden_size=256, num_layers=2, batch_first=True)`. Two stacked LSTM layers process the word sequence token by token and maintain a hidden state encoding context. |
+| **Lab 9** | Bidirectional RNN | `bidirectional=True` in nn.LSTM. The forward pass reads left-to-right; the backward pass reads right-to-left. Both hidden states are concatenated: `h = [h_fwd; h_bwd]`, giving the model context from both directions. Output dimension doubles to 512. |
+| **Custom** | Bahdanau Attention | `score(h_t) = v^T · tanh(W_a · h_t)`, `α = softmax(score)`, `context = Σ αt · ht`. The attention weights are extracted and visualized in the UI as a word cloud — words with higher attention are larger and more colored. This is the key novelty over a plain BiLSTM. |
 
 ---
 
-## 8. System Components
+## 7. Regularization Techniques (Lab 7 Detail)
+
+| Technique | Implementation | Effect on model |
+|-----------|---------------|-----------------|
+| **Dropout (p=0.3)** | After embedding layer, after LSTM output, in classifier MLP | Randomly zeros 30% of activations during training. Forces network to learn redundant representations. At inference: no dropout, full activations used. |
+| **L2 Weight Decay** | `AdamW(params, weight_decay=0.01)` | Adds `λ·||w||²` to loss, penalizing large weights. Prevents any single weight from dominating. |
+| **Gradient Clipping** | `torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)` | Prevents exploding gradients in deep RNNs by rescaling gradient vector if its norm exceeds 1.0. Critical for LSTM training stability. |
+| **Early Stopping** | Monitor val_accuracy, patience=5, restore best weights | Stops training when val_accuracy stops improving. Prevents overfitting by not training past the generalization optimum. |
+| **CosineAnnealingLR** | Decays lr from 3e-4 to 0 following cosine curve | Avoids learning rate being too large in later epochs, allows fine convergence. |
+| **Mixed Precision** | `fp16=True` in TrainingArguments (when CUDA available) | Reduces GPU memory usage and speeds training with minimal accuracy impact. |
+
+---
+
+## 8. HuggingFace Integration
+
+### Pre-trained Models (used without any training)
+
+```python
+from transformers import pipeline
+
+# Stage 3 tries each model in order, uses first that loads successfully
+clf = pipeline(
+    "text-classification",
+    model="hamzab/roberta-fake-news-classification",
+    device=0 if torch.cuda.is_available() else -1,
+    truncation=True,
+    max_length=512,
+)
+result = clf("Article text here...")[0]
+# → {"label": "FAKE", "score": 0.923}
+```
+
+All pre-trained models are:
+- Downloaded automatically on first use
+- Cached in `~/.cache/huggingface/`
+- No account or token required for inference
+
+### Custom Model (trained on Kaggle, pushed to HuggingFace)
+
+```python
+# After training completes on Kaggle:
+bert_model.push_to_hub("Arihant2409/truthlens-fake-news-detector")
+tokenizer.push_to_hub("Arihant2409/truthlens-fake-news-detector")
+
+# Backend then loads it automatically as the #1 priority model:
+# HF_MODELS = ["Arihant2409/truthlens-fake-news-detector", ...]
+```
+
+**HuggingFace Datasets** (used for training):
+
+```python
+from datasets import load_dataset
+welfake = load_dataset("davanstrien/WELFake", split="train")
+liar    = load_dataset("ucsbnlp/liar",        split="train")
+# Automatically downloaded, cached, and converted to PyTorch tensors
+```
+
+---
+
+## 9. Multi-Model Comparison Feature
+
+A unique feature of TruthLens is the **Model Comparison Panel** shown after every analysis. All loaded models produce predictions independently, and the UI shows:
+
+- Each model's name and training data
+- Individual verdict (FAKE/REAL) with confidence percentage
+- Animated confidence bar
+- A **consensus badge**: "All agree: FAKE" (all models agree) or "2 FAKE / 2 REAL" (disagreement)
+
+This is valuable because:
+- If all 4 models agree → high confidence in verdict
+- If models disagree → article may be in a grey zone requiring human judgment
+- Different models were trained on different data → disagreement reveals edge cases
+
+---
+
+## 10. API Design
+
+| Endpoint | Method | Request Body | Response |
+|----------|--------|-------------|----------|
+| `/api/analyze` | POST | `{headline: str, content: str}` | Full AnalysisResponse JSON |
+| `/api/analyze-url` | POST | `{url: str}` | Scrape URL → AnalysisResponse |
+| `/api/demo` | GET | — | Demo fake article analysis |
+| `/api/health` | GET | — | `{status: "ok", ...}` |
+| `/docs` | GET | — | Interactive Swagger UI (auto-generated) |
+
+**AnalysisResponse fields:**
+- `risk_score` (0–100), `verdict` (REAL/SUSPICIOUS/FAKE), `confidence`
+- `summary` (human-readable explanation)
+- `stages` — per-gate score, verdict, flags, and detailed metrics
+- `stages.content.details.model_comparison` — list of all model predictions
+- `attention_words` — list of `{word, weight}` pairs
+- `key_flags` — top flags across all gates
+- `article` — headline, content preview, URL, word count
+- `processing_time_ms`
+
+---
+
+## 11. Frontend UI Architecture
+
+Built with **Next.js 16 + React 19 + TypeScript**, styled with a custom Apple/Claude-inspired liquid glass design system.
+
+### Design System (`globals.css`)
+- **`.glass`** — `backdrop-filter: blur(40px) saturate(200%) brightness(1.04)` + inset highlight + gradient border
+- **`.glass-shimmer`** — sweeping light animation on hover
+- **`.gradient-border`** — specular ring via CSS mask compositing
+- **`.orb` / `.mesh-bg`** — 4 animated gradient blobs (blur 90px) that float behind all content
+- **CSS variables** — `--glass-bg`, `--accent`, `--green`, `--orange`, `--red`, `--purple`
+
+### Pages
+- **`/`** — Home: animated mesh background, floating bouncing glass cards, interactive pipeline pills with hover tooltips, hero input, results dashboard
+- **`/how-it-works`** — Full architecture page: 4 gate breakdowns, ensemble weights visualization, technology stack
+
+### Components
+| Component | Description |
+|-----------|-------------|
+| `FloatingCards` | 6 glass cards drift/bounce around viewport using `requestAnimationFrame` physics |
+| `RiskGauge` | SVG arc gauge with ease-out-quart counter animation and glow filter |
+| `AnalysisResult` | Full dashboard: verdict banner, firewall pipeline visual, 4 gate cards, model comparison, attention word cloud, score breakdown |
+| `StageCard` | Collapsible glass card per gate showing flags and metrics grid |
+| `LoadingScreen` | Orbital SVG spinner + stage-by-stage list with active tile + green checkmarks |
+
+---
+
+## 12. Project Structure
 
 ```
 FakeNewsDetector/
-├── backend/                     ← Python FastAPI server
-│   ├── main.py                  ← REST API (POST /api/analyze, POST /api/analyze-url)
+├── backend/
+│   ├── main.py                    FastAPI app, CORS, Pydantic v2 models
+│   ├── requirements.txt
 │   ├── pipeline/
-│   │   ├── stage1_headline.py   ← Gate 1: headline pattern analysis
-│   │   ├── stage2_style.py      ← Gate 2: writing style + linguistic features
-│   │   ├── stage3_content.py    ← Gate 3: deep learning content analysis
-│   │   ├── stage4_source.py     ← Gate 4: source/domain credibility
-│   │   └── ensemble.py          ← Weighted combination → final verdict
+│   │   ├── stage1_headline.py     8 headline checks (regex + wordlists)
+│   │   ├── stage2_style.py        10+ linguistic features
+│   │   ├── stage3_content.py      4-model ML comparison + NLP features
+│   │   ├── stage4_source.py       200+ domain blacklist + URL analysis
+│   │   └── ensemble.py            Weighted 15/25/40/20 verdict engine
 │   └── utils/
-│       └── scraper.py           ← URL scraping (requests + BeautifulSoup)
+│       └── scraper.py             URL scraper (BeautifulSoup, JSON-LD, OG tags)
 │
-├── frontend/                    ← Next.js 14 premium dashboard
+├── frontend/
+│   ├── package.json               Next.js 16, React 19
+│   ├── next.config.js             API proxy /api/* → :8000
 │   └── app/
-│       ├── page.tsx             ← Main page
-│       ├── globals.css          ← Apple/Claude-style design system
+│       ├── page.tsx               Home page
+│       ├── globals.css            Liquid glass design system
+│       ├── how-it-works/page.tsx  Architecture explanation page
 │       └── components/
 │           ├── Navbar.tsx
-│           ├── HeroInput.tsx    ← Tab: paste text / analyze URL
-│           ├── LoadingScreen.tsx← Stage-by-stage loading animation
-│           ├── AnalysisResult.tsx← Full results dashboard
-│           ├── StageCard.tsx    ← Collapsible per-stage detail card
-│           └── RiskGauge.tsx    ← Animated SVG arc gauge
+│           ├── HeroInput.tsx
+│           ├── LoadingScreen.tsx
+│           ├── AnalysisResult.tsx  (includes Model Comparison panel)
+│           ├── StageCard.tsx
+│           ├── RiskGauge.tsx
+│           └── FloatingCards.tsx
 │
 └── training/
-    ├── train_colab.py           ← Google Colab training script
-    └── DATASETS.md              ← 10 dataset sources with download instructions
+    ├── train_kaggle.py            Full training: 4 datasets + BiLSTM + DistilBERT + HF push
+    ├── train_colab.py             Google Colab alternative
+    └── DATASETS.md                10 dataset sources
 ```
 
 ---
 
-## 9. API
+## 13. Key Technical Innovations
 
-| Endpoint | Method | Input | Output |
-|----------|--------|-------|--------|
-| `/api/analyze` | POST | `{headline, content}` | Full analysis JSON |
-| `/api/analyze-url` | POST | `{url}` | Scrape + analyze |
-| `/api/demo` | GET | — | Demo fake article analysis |
-| `/api/health` | GET | — | Server status |
-
----
-
-## 10. Evaluation Metrics
-
-| Model | Expected Accuracy | Expected F1 |
-|-------|------------------|-------------|
-| Gate 1–4 Heuristics only | ~78–82% | ~0.78 |
-| BiLSTM + Attention | ~94–96% | ~0.94 |
-| BERT fine-tuned | ~97–99% | ~0.97 |
-| Full ensemble (all gates) | **~96–98%** | **~0.96** |
+1. **Multi-stage firewall** — no single model decides; 4 independent analytical signals are weighted and combined, making the system robust to adversarial writing
+2. **4-model simultaneous comparison** — shows consensus across multiple transformer architectures; disagreement signals borderline content requiring human judgment
+3. **Explainability via attention** — Bahdanau attention weights are extracted and visualized as a word cloud, making the model's decision interpretable
+4. **URL-native analysis** — paste any news URL; BeautifulSoup scraper extracts headline and body automatically via JSON-LD, OpenGraph, and CSS selectors
+5. **No local GPU required** — system runs immediately using HuggingFace pre-trained models; GPU training is deferred to Kaggle/Colab
+6. **Combined training corpus** — 4 datasets merged (~130k articles) covering news, political claims, and multiple domains for better generalization
+7. **HuggingFace-native workflow** — training data loaded from HF Hub, trained model pushed back to HF Hub, inference via HF `pipeline()` — modern production ML workflow
+8. **Rich linguistic gate (Gate 2)** — 10+ classical NLP features computed without ML, providing interpretable signals that complement the transformer models
 
 ---
 
-## 11. Key Novelties Over Standard Approaches
-
-1. **Multi-stage firewall** — no single model decides; 4 independent signals are combined
-2. **Explainability** — attention weights visualized as word clouds showing what the model "read"
-3. **URL-native** — paste a URL and the system scrapes + analyzes automatically
-4. **No local GPU needed** — runs immediately using HuggingFace pre-trained models
-5. **Rich linguistic analysis** — 20+ handcrafted features (TTR, Flesch, quote density, weasel words) complement the ML model
-6. **Domain blacklist** — 200+ known fake news domains cross-referenced in real time
-
----
-
-## 12. How to Run
+## 14. How to Run
 
 ```bash
-# ── Backend ───────────────────────────────────────
+# 1. Backend
 cd backend
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
+# API at localhost:8000 | Swagger UI at localhost:8000/docs
 
-# ── Frontend ──────────────────────────────────────
+# 2. Frontend
 cd frontend
 npm install
-npm run dev
-# → Open http://localhost:3000
+npx next dev -p 3000
+# Dashboard at localhost:3000
 
-# ── Training (Google Colab) ───────────────────────
-# Upload training/train_colab.py to Colab
-# Set Runtime → GPU (T4)
-# Run: python train_colab.py
+# 3. Training (Kaggle — recommended)
+# - Go to kaggle.com/code → New Notebook → GPU T4 x2
+# - !pip install transformers datasets accelerate scikit-learn huggingface_hub -q
+# - from huggingface_hub import login; login("YOUR_TOKEN")
+# - Upload and run training/train_kaggle.py
+# - Model auto-pushed to huggingface.co/Arihant2409/truthlens-fake-news-detector
 ```
 
 ---
 
-## 13. Conclusion
+## 15. Conclusion
 
-This project demonstrates how a **layered, multi-signal approach** — combining rule-based linguistic analysis, deep learning (BiLSTM + Attention), and transfer learning (BERT) — outperforms any single model for fake news detection. By incorporating concepts studied across the Deep Learning lab (Labs 2–9) into a unified production system with a premium web interface, the project bridges academic theory and real-world application.
+TruthLens demonstrates how a **layered, multi-signal approach** significantly outperforms any single model for fake news detection. By combining:
+
+- **Rule-based linguistic analysis** (Gate 1 & 2) for fast, interpretable features
+- **Multi-model transformer ensemble** (Gate 3) for deep semantic understanding
+- **Domain intelligence** (Gate 4) for source credibility
+- **Proper ML training practices** (Labs 2–9: autograd, transfer learning, BiLSTM, attention, regularization)
+- **Modern deployment** (FastAPI + HuggingFace Hub + Next.js 16)
+
+...the project bridges the full stack from academic deep learning theory to a working production web application. The multi-model comparison panel uniquely demonstrates how different architectures trained on the same data can have different confidence levels, giving users transparency into the AI decision-making process.
