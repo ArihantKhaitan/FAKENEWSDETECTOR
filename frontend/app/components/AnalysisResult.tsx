@@ -375,8 +375,118 @@ export default function AnalysisResult({ data }: Props) {
             </div>
           </div>
 
+          {/* Model Comparison */}
+          {(() => {
+            const comparison: {
+              name: string; short: string; color: string;
+              label: string; confidence: number; risk_score: number | null;
+              trained_on: string; available: boolean;
+            }[] = data.stages.content?.details?.model_comparison as never ?? [];
+            const available = comparison.filter(m => m.available);
+            if (available.length === 0) return null;
+
+            const allAgree = available.every(m => m.label === available[0].label);
+            const fakeCount = available.filter(m => m.label === "FAKE").length;
+            const realCount = available.filter(m => m.label === "REAL").length;
+
+            return (
+              <div className="glass animate-fade-up delay-700" style={{ padding: "20px", borderRadius: "18px" }}>
+                {/* Header */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+                  <div>
+                    <p style={{ fontSize: "10px", fontWeight: 700, color: "#98989D", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "2px" }}>
+                      Model Comparison
+                    </p>
+                    <p style={{ fontSize: "11px", color: "#6E6E73" }}>
+                      {available.length} AI models tested
+                    </p>
+                  </div>
+                  {/* Consensus badge */}
+                  <div style={{
+                    padding: "4px 10px", borderRadius: "980px", fontSize: "10px", fontWeight: 700,
+                    background: allAgree
+                      ? (available[0].label === "FAKE" ? "rgba(255,59,48,0.1)" : "rgba(48,209,88,0.1)")
+                      : "rgba(255,159,10,0.1)",
+                    color: allAgree
+                      ? (available[0].label === "FAKE" ? "#FF3B30" : "#30D158")
+                      : "#FF9F0A",
+                    border: `1px solid ${allAgree ? (available[0].label === "FAKE" ? "rgba(255,59,48,0.25)" : "rgba(48,209,88,0.25)") : "rgba(255,159,10,0.25)"}`,
+                  }}>
+                    {allAgree ? `All agree: ${available[0].label}` : `${fakeCount} FAKE / ${realCount} REAL`}
+                  </div>
+                </div>
+
+                {/* Per-model rows */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {available.map((m, i) => {
+                    const isFake = m.label === "FAKE";
+                    const barColor = isFake ? "#FF3B30" : "#30D158";
+                    const conf = Math.round(m.confidence * 100);
+
+                    return (
+                      <div key={i} style={{
+                        padding: "12px 14px", borderRadius: "13px",
+                        background: "rgba(0,0,0,0.025)",
+                        border: "1px solid rgba(255,255,255,0.7)",
+                      }}>
+                        {/* Model name + verdict */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                            <div style={{
+                              width: "8px", height: "8px", borderRadius: "50%",
+                              background: m.color, flexShrink: 0,
+                              boxShadow: `0 0 6px ${m.color}60`,
+                            }} />
+                            <span style={{ fontSize: "12px", fontWeight: 600, color: "#1D1D1F" }}>{m.name}</span>
+                          </div>
+                          <div style={{
+                            display: "flex", alignItems: "center", gap: "5px",
+                            padding: "3px 9px", borderRadius: "980px",
+                            background: isFake ? "rgba(255,59,48,0.1)" : "rgba(48,209,88,0.1)",
+                            border: `1px solid ${isFake ? "rgba(255,59,48,0.2)" : "rgba(48,209,88,0.2)"}`,
+                          }}>
+                            <span style={{ fontSize: "9px", fontWeight: 800, color: barColor }}>
+                              {isFake ? "✕" : "✓"}
+                            </span>
+                            <span style={{ fontSize: "10px", fontWeight: 700, color: barColor }}>{m.label}</span>
+                          </div>
+                        </div>
+
+                        {/* Confidence bar */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <div style={{ flex: 1, height: "4px", background: "rgba(0,0,0,0.06)", borderRadius: "2px", overflow: "hidden" }}>
+                            <div style={{
+                              width: `${conf}%`, height: "100%", borderRadius: "2px",
+                              background: `linear-gradient(90deg, ${barColor}60, ${barColor})`,
+                              transition: "width 1s cubic-bezier(0.4,0,0.2,1)",
+                            }} />
+                          </div>
+                          <span style={{ fontSize: "11px", fontWeight: 700, color: barColor, minWidth: "34px", textAlign: "right" }}>
+                            {conf}%
+                          </span>
+                        </div>
+
+                        {/* Trained on */}
+                        <p style={{ fontSize: "10px", color: "#98989D", marginTop: "6px", lineHeight: 1.4 }}>
+                          Trained on: {m.trained_on}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Models that failed to load */}
+                {comparison.filter(m => !m.available).length > 0 && (
+                  <p style={{ fontSize: "10px", color: "#C0C0C8", marginTop: "10px", textAlign: "center" }}>
+                    {comparison.filter(m => !m.available).map(m => m.name).join(", ")} — not loaded
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Verify with trusted sources */}
-          <div className="glass-subtle animate-fade-up delay-700" style={{ padding: "16px 18px", borderRadius: "14px" }}>
+          <div className="glass-subtle animate-fade-up delay-800" style={{ padding: "16px 18px", borderRadius: "14px" }}>
             <p style={{ fontSize: "11px", fontWeight: 700, color: "#1D1D1F", marginBottom: "6px" }}>
               Verify independently
             </p>

@@ -41,6 +41,41 @@ HF_MODELS = [
     "mrm8488/bert-tiny-finetuned-fake-news-detection",
 ]
 
+# Models shown in the UI comparison panel (display name, model id, color)
+COMPARISON_MODELS = [
+    {
+        "id": "Arihant2409/truthlens-fake-news-detector",
+        "name": "TruthLens Custom",
+        "short": "Custom (trained on 130k)",
+        "color": "#BF5AF2",
+        "trained_on": "WELFake + LIAR + GonzaloA (~130k articles)",
+    },
+    {
+        "id": "hamzab/roberta-fake-news-classification",
+        "name": "RoBERTa (hamzab)",
+        "short": "RoBERTa WELFake",
+        "color": "#0071E3",
+        "trained_on": "WELFake dataset (~72k articles)",
+    },
+    {
+        "id": "vikram71198/distilroberta-base-finetuned-fake-news-detection",
+        "name": "DistilRoBERTa",
+        "short": "DistilRoBERTa",
+        "color": "#30D158",
+        "trained_on": "Fake news classification dataset",
+    },
+    {
+        "id": "mrm8488/bert-tiny-finetuned-fake-news-detection",
+        "name": "BERT-Tiny",
+        "short": "BERT-tiny (fast)",
+        "color": "#FF9F0A",
+        "trained_on": "Fake news dataset (lightweight)",
+    },
+]
+
+# Per-model pipeline cache: {model_id: pipeline_or_None}
+_model_cache: dict = {}
+
 # Sentiment word lists for fallback
 POSITIVE_WORDS = {
     "good", "great", "excellent", "positive", "success", "win", "improve",
@@ -108,6 +143,102 @@ def _get_hf_pipeline(task="text-classification"):
     _pipeline_cache["classifier"] = None
     _pipeline_cache["model_name"] = "heuristic"
     return None, "heuristic"
+
+
+def _load_single_model(model_id: str):
+    """Load a single model pipeline, cached per model_id. Returns None on failure."""
+    if model_id in _model_cache:
+        return _model_cache[model_id]
+    try:
+        from transformers import pipeline as hf_pipeline
+        import torch
+        device = 0 if torch.cuda.is_available() else -1
+        clf = hf_pipeline(
+            "text-classification",
+            model=model_id,
+            device=device,
+            truncation=True,
+            max_length=512,
+        )
+        _model_cache[model_id] = clf
+        print(f"[Stage3] Loaded comparison model: {model_id}")
+        return clf
+    except Exception as e:
+        print(f"[Stage3] Comparison model unavailable: {model_id} — {e}")
+        _model_cache[model_id] = None
+        return None
+
+
+def _normalize_label(label: str, model_id: str) -> str:
+    """Normalize different model label schemes to FAKE/REAL."""
+    label = label.upper().strip()
+    # jy46604790 uses LABEL_0=Fake, LABEL_1=Real (opposite of others)
+    if "jy46604790" in model_id:
+        if label in ("LABEL_0", "FAKE", "0"):
+            return "FAKE"
+        return "REAL"
+    # Most models: LABEL_1=FAKE or explicit FAKE/REAL
+    if label in ("FAKE", "LABEL_1", "1", "FALSE"):
+        return "FAKE"
+    return "REAL"
+
+
+def _get_comparison_results(text: str) -> list:
+    """
+    Run all COMPARISON_MODELS on the text and return per-model predictions.
+    Models load lazily and failures are silently skipped.
+    """
+    truncated = " ".join(text.split()[:400])
+    results = []
+
+    for meta in COMPARISON_MODELS:
+        clf = _load_single_model(meta["id"])
+        if clf is None:
+            # Show as unavailable in UI
+            results.append({
+                "model_id": meta["id"],
+                "name": meta["name"],
+                "short": meta["short"],
+                "color": meta["color"],
+                "trained_on": meta["trained_on"],
+                "label": "UNAVAILABLE",
+                "confidence": 0.0,
+                "risk_score": None,
+                "available": False,
+            })
+            continue
+
+        try:
+            raw = clf(truncated)[0]
+            label = _normalize_label(raw["label"], meta["id"])
+            conf = float(raw["score"])
+            risk = round(conf * 85) if label == "FAKE" else round((1 - conf) * 40)
+            results.append({
+                "model_id": meta["id"],
+                "name": meta["name"],
+                "short": meta["short"],
+                "color": meta["color"],
+                "trained_on": meta["trained_on"],
+                "label": label,
+                "confidence": round(conf, 4),
+                "risk_score": risk,
+                "available": True,
+            })
+        except Exception as e:
+            print(f"[Stage3] Inference failed for {meta['id']}: {e}")
+            results.append({
+                "model_id": meta["id"],
+                "name": meta["name"],
+                "short": meta["short"],
+                "color": meta["color"],
+                "trained_on": meta["trained_on"],
+                "label": "ERROR",
+                "confidence": 0.0,
+                "risk_score": None,
+                "available": False,
+            })
+
+    return results
 
 
 def _heuristic_fake_score(text: str) -> Tuple[float, str]:
@@ -321,6 +452,9 @@ def analyze_content(headline: str, content: str) -> Stage3Result:
     # ── 5. Attention words ───────────────────────────────────────────────
     attention_words = _extract_attention_words(content)
 
+    # ── 6. Multi-model comparison ─────────────────────────────────────────
+    model_comparison = _get_comparison_results(text)
+
     # ── Final score ──────────────────────────────────────────────────────
     score = min(100.0, float(sum(penalties)))
 
@@ -343,6 +477,7 @@ def analyze_content(headline: str, content: str) -> Stage3Result:
             "named_entity_density": round(ne_density, 4),
             "headline_body_consistency": round(consistency, 3),
             "word_count": len(words),
+            "model_comparison": model_comparison,
         },
         attention_words=attention_words,
         model_used=model_name,
