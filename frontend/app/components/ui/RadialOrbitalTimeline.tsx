@@ -57,8 +57,8 @@ export default function RadialOrbitalTimeline({ items }: RadialOrbitalTimelinePr
         className="absolute rounded-full"
         style={{
           width: "380px", height: "380px",
-          border: "1px solid rgba(255,255,255,0.15)",
-          boxShadow: "0 0 40px rgba(0,113,227,0.08)",
+          border: "1px solid rgba(0,0,0,0.08)",
+          boxShadow: "0 0 40px rgba(0,113,227,0.06)",
         }}
       />
       {/* Inner ring */}
@@ -66,7 +66,7 @@ export default function RadialOrbitalTimeline({ items }: RadialOrbitalTimelinePr
         className="absolute rounded-full"
         style={{
           width: "280px", height: "280px",
-          border: "1px solid rgba(255,255,255,0.07)",
+          border: "1px solid rgba(0,0,0,0.05)",
         }}
       />
 
@@ -123,11 +123,11 @@ export default function RadialOrbitalTimeline({ items }: RadialOrbitalTimelinePr
               className="flex items-center justify-center rounded-full transition-all duration-300"
               style={{
                 width: "48px", height: "48px",
-                background: isExpanded ? item.color : "rgba(255,255,255,0.08)",
+                background: isExpanded ? item.color : "rgba(255,255,255,0.75)",
                 border: `2px solid ${item.color}`,
                 boxShadow: isExpanded
                   ? `0 0 20px ${item.color}80, 0 0 40px ${item.color}30`
-                  : `0 0 12px ${item.color}30`,
+                  : `0 4px 16px ${item.color}30, inset 0 1px 0 rgba(255,255,255,0.9)`,
                 backdropFilter: "blur(20px)",
                 transform: `translate(-50%, -50%)`,
               }}
@@ -143,19 +143,19 @@ export default function RadialOrbitalTimeline({ items }: RadialOrbitalTimelinePr
               </span>
             </div>
 
-            {/* Label */}
+            {/* Label — sits below the circle (circle is 48px centered at origin, so bottom edge = +24px) */}
             <div
               className="absolute whitespace-nowrap text-center"
               style={{
-                top: "16px",
+                top: "30px",
                 left: "50%",
                 transform: "translateX(-50%)",
                 fontSize: "10px",
-                fontWeight: 600,
-                color: isExpanded ? item.color : "rgba(255,255,255,0.6)",
-                letterSpacing: "0.04em",
+                fontWeight: 700,
+                color: isExpanded ? item.color : "#3D3D3F",
+                letterSpacing: "0.05em",
                 textTransform: "uppercase",
-                textShadow: isExpanded ? `0 0 10px ${item.color}` : "none",
+                textShadow: isExpanded ? `0 0 8px ${item.color}60` : "none",
                 transition: "all 0.3s ease",
               }}
             >
@@ -171,7 +171,7 @@ export default function RadialOrbitalTimeline({ items }: RadialOrbitalTimelinePr
                   left: "50%",
                   transform: "translateX(-50%)",
                   width: "180px",
-                  background: "rgba(15,23,42,0.92)",
+                  background: "rgba(255,255,255,0.92)",
                   backdropFilter: "blur(24px)",
                   border: `1px solid ${item.color}40`,
                   borderRadius: "14px",
@@ -183,14 +183,14 @@ export default function RadialOrbitalTimeline({ items }: RadialOrbitalTimelinePr
                 <div style={{ fontSize: "11px", fontWeight: 700, color: item.color, marginBottom: "6px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                   {item.title}
                 </div>
-                <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.75)", lineHeight: 1.55, marginBottom: "8px" }}>
+                <div style={{ fontSize: "11px", color: "#6E6E73", lineHeight: 1.55, marginBottom: "8px" }}>
                   {item.description}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: "10px", color: "rgba(255,255,255,0.4)" }}>Weight</span>
+                  <span style={{ fontSize: "10px", color: "#98989D" }}>Weight</span>
                   <span style={{ fontSize: "13px", fontWeight: 700, color: item.color }}>{item.weight}%</span>
                 </div>
-                <div style={{ height: "3px", background: "rgba(255,255,255,0.1)", borderRadius: "2px", marginTop: "4px", overflow: "hidden" }}>
+                <div style={{ height: "3px", background: "rgba(0,0,0,0.08)", borderRadius: "2px", marginTop: "4px", overflow: "hidden" }}>
                   <div style={{ width: `${item.weight / 0.28}%`, height: "100%", background: item.color, borderRadius: "2px" }} />
                 </div>
               </div>
