@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { StageData } from "../page";
+import { GlowingEffect } from "./ui/GlowingEffect";
 
 interface Props {
   index: number;
@@ -32,6 +33,7 @@ export default function StageCard({ index, name, icon, description, data, delay 
         overflow: "hidden",
         borderLeft: `3px solid ${cfg.color}`,
         transition: "box-shadow 0.3s ease, transform 0.3s ease",
+        position: "relative",
       }}
       onMouseEnter={e => {
         (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)";
@@ -40,6 +42,7 @@ export default function StageCard({ index, name, icon, description, data, delay 
         (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
       }}
     >
+      <GlowingEffect spread={30} proximity={60} borderWidth={1.5} movementDuration={1.5} />
       {/* Header */}
       <button
         onClick={() => setOpen(!open)}

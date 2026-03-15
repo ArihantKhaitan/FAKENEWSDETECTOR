@@ -1,5 +1,8 @@
 "use client";
 
+import React from "react";
+import { TextShimmer } from "./ui/TextShimmer";
+
 export default function Navbar() {
   return (
     <header
@@ -30,9 +33,14 @@ export default function Navbar() {
             <path d="M7.5 4.5V8l2 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
         </div>
-        <span style={{ fontSize: "17px", fontWeight: 650, color: "#1D1D1F", letterSpacing: "-0.012em" }}>
+        <TextShimmer
+          as="span"
+          duration={2.5}
+          spread={3}
+          className="[--base-color:#1D1D1F] [--base-gradient-color:#0071E3] text-[17px] font-semibold tracking-tight"
+        >
           TruthLens
-        </span>
+        </TextShimmer>
       </div>
 
       {/* Nav */}

@@ -6,6 +6,7 @@ import HeroInput from "./components/HeroInput";
 import AnalysisResult from "./components/AnalysisResult";
 import LoadingScreen from "./components/LoadingScreen";
 import FloatingCards from "./components/FloatingCards";
+import { TextShimmer } from "./components/ui/TextShimmer";
 
 export type AnalysisData = {
   risk_score: number;
@@ -191,7 +192,14 @@ export default function Home() {
               }}
             >
               Is this news{" "}
-              <span className="text-gradient-blue">real?</span>
+              <TextShimmer
+                as="span"
+                duration={2}
+                spread={4}
+                className="[--base-color:#0071E3] [--base-gradient-color:#5AC8FA]"
+              >
+                real?
+              </TextShimmer>
             </h1>
 
             <p

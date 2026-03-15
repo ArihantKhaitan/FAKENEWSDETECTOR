@@ -2,6 +2,9 @@
 
 import Navbar from "../components/Navbar";
 import Link from "next/link";
+import RadialOrbitalTimeline from "../components/ui/RadialOrbitalTimeline";
+import { TextShimmer } from "../components/ui/TextShimmer";
+import { ContainerScroll } from "../components/ui/ContainerScroll";
 
 const GATES = [
   {
@@ -135,7 +138,11 @@ export default function HowItWorksPage() {
             className="animate-fade-up"
             style={{ fontSize: "clamp(40px, 6vw, 76px)", fontWeight: 700, letterSpacing: "-0.035em", lineHeight: 1.0, color: "#1D1D1F", marginBottom: "22px" }}
           >
-            How <span className="text-gradient-blue">TruthLens</span> works
+            How{" "}
+            <TextShimmer as="span" duration={2.5} spread={4} className="[--base-color:#0071E3] [--base-gradient-color:#5AC8FA]">
+              TruthLens
+            </TextShimmer>
+            {" "}works
           </h1>
 
           <p
@@ -145,46 +152,33 @@ export default function HowItWorksPage() {
             Five independent AI gates analyze every article in parallel. Each gate scores a different dimension of credibility. The ensemble combines them into a final weighted verdict.
           </p>
 
-          {/* Pipeline visual */}
-          <div
-            className="animate-fade-up delay-200"
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "80px", flexWrap: "wrap" }}
-          >
-            {([
-              { label: "Article", icon: "📄", bg: "#F2F2F7", color: "#1D1D1F" },
-              null,
-              { label: "Headline", icon: "◎", bg: "rgba(0,113,227,0.1)", color: "#0071E3" },
-              { label: "Style", icon: "≋", bg: "rgba(191,90,242,0.1)", color: "#BF5AF2" },
-              { label: "AI Model", icon: "◈", bg: "rgba(48,209,88,0.1)", color: "#30D158" },
-              { label: "Source", icon: "◉", bg: "rgba(255,159,10,0.1)", color: "#FF9F0A" },
-              { label: "Corroboration", icon: "⊕", bg: "rgba(100,210,255,0.1)", color: "#64D2FF" },
-              null,
-              { label: "Verdict", icon: "⚖", bg: "#1D1D1F", color: "#fff" },
-            ] as ({ label: string; icon: string; bg: string; color: string } | null)[]).map((item, i) =>
-              item === null ? (
-                <div key={i} style={{ display: "flex", alignItems: "center", padding: "0 4px" }}>
-                  <svg width="24" height="10" viewBox="0 0 24 10" fill="none">
-                    <path d="M1 5h20M16 1l4 4-4 4" stroke="rgba(0,0,0,0.2)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-              ) : (
-                <div key={i} style={{
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: "5px",
-                  padding: "10px 14px", borderRadius: "14px",
-                  background: item.bg, border: `1px solid ${item.color}20`,
-                  minWidth: "70px", margin: "4px",
-                }}>
-                  <span style={{ fontSize: "18px", color: item.color }}>{item.icon}</span>
-                  <span style={{ fontSize: "10px", fontWeight: 600, color: item.color === "#fff" ? "#fff" : "#3D3D3F" }}>{item.label}</span>
-                </div>
-              )
-            )}
+          {/* Pipeline visual — Radial Orbital */}
+          <div className="animate-fade-up delay-200" style={{ marginBottom: "60px" }}>
+            <RadialOrbitalTimeline
+              items={[
+                { id: 1, title: "Headline", icon: "◎", color: "#0071E3", description: "8 checks: CAPS ratio, clickbait phrases, punctuation abuse, emotional triggers", weight: 12 },
+                { id: 2, title: "Style", icon: "≋", color: "#BF5AF2", description: "TTR, Flesch score, quote density, weasel words, first-person overuse", weight: 20 },
+                { id: 3, title: "Content AI", icon: "◈", color: "#30D158", description: "4 transformer models in parallel — RoBERTa, DistilRoBERTa, BERT-base, BERT-tiny", weight: 28 },
+                { id: 4, title: "Source", icon: "◉", color: "#FF9F0A", description: "200+ domain blacklist, TLD trust scoring, HTTPS check, URL structure analysis", weight: 20 },
+                { id: 5, title: "Corroboration", icon: "⊕", color: "#64D2FF", description: "Google News RSS — counts coverage from 50+ verified outlets", weight: 20 },
+              ]}
+            />
+            <p style={{ fontSize: "12px", color: "#98989D", textAlign: "center", marginTop: "8px" }}>
+              Click any gate to see details · ⚖ center = ensemble verdict
+            </p>
           </div>
         </section>
 
-        {/* Gates */}
-        <section style={{ maxWidth: "1100px", margin: "0 auto", padding: "0 24px 80px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(480px, 1fr))", gap: "20px" }}>
+        {/* Gates — wrapped in ContainerScroll for 3D reveal */}
+        <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 24px 40px" }}>
+          <ContainerScroll
+            titleComponent={
+              <h2 style={{ fontSize: "clamp(22px, 3vw, 36px)", fontWeight: 700, letterSpacing: "-0.025em", color: "#1D1D1F", marginBottom: "8px" }}>
+                The 5 Detection Gates
+              </h2>
+            }
+          >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: "20px", padding: "8px" }}>
             {GATES.map((gate, gi) => (
               <div
                 key={gi}
@@ -244,6 +238,7 @@ export default function HowItWorksPage() {
               </div>
             ))}
           </div>
+          </ContainerScroll>
         </section>
 
         {/* Ensemble scoring */}
